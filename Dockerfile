@@ -15,14 +15,17 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Instalar dependências
-RUN npm install --only=production && npm cache clean --force
+# Instalar todas as dependências para build
+RUN npm install && npm cache clean --force
 
 # Copiar código fonte
 COPY src ./src
 
 # Build do TypeScript
 RUN npm run build
+
+# Remover dev dependencies para reduzir tamanho da imagem
+RUN npm prune --production
 
 # Mudar ownership dos arquivos para usuário nodejs
 RUN chown -R nextjs:nodejs /app
