@@ -24,7 +24,12 @@ export function loggingMiddleware(): MiddlewareFn<Context> {
         logData.callback_data = ctx.callbackQuery.data;
       }
 
-      console.log('📝 Incoming request:', logData);
+      console.log('📝 TELEGRAM REQUEST:', JSON.stringify(logData, null, 2));
+      
+      // Log adicional para debug
+      if (message && 'text' in message) {
+        console.log(`🤖 COMANDO RECEBIDO: "${message.text}" de @${telegramUser?.username || telegramUser?.id}`);
+      }
 
       await next();
 

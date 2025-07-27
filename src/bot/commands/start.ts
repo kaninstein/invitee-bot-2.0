@@ -9,11 +9,16 @@ const pendingUidInput = new Map<number, { userId: number; step: 'waiting_uid' }>
 
 export async function startCommand(ctx: Context) {
   try {
+    console.log('🚀 COMANDO /start EXECUTADO!');
+    
     const telegramUser = ctx.from;
     if (!telegramUser) {
+      console.log('❌ Erro: telegramUser é null');
       await ctx.reply('❌ Erro ao obter informações do usuário.');
       return;
     }
+    
+    console.log(`👤 Usuário: @${telegramUser.username || telegramUser.id} (${telegramUser.first_name})`);
 
     // Criar ou atualizar usuário no banco
     const user = await userService.createOrUpdateUser({

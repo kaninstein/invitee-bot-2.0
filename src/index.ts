@@ -36,6 +36,17 @@ async function startServer() {
     // Setup routes
     app.use('/', healthRoutes);
     
+    // Debug endpoint para webhook
+    app.use('/webhook', (req, res, next) => {
+      console.log('🔗 WEBHOOK CHAMADO:', {
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        timestamp: new Date().toISOString()
+      });
+      next();
+    });
+    
     // Setup webhook endpoint
     app.use(bot.webhookCallback('/webhook'));
     
