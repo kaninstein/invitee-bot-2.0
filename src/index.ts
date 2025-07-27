@@ -58,6 +58,21 @@ async function startServer() {
         status: 'running',
         timestamp: new Date().toISOString(),
         description: 'Bot para controle de acesso a grupo de calls cripto via afiliados Blofin',
+        port: PORT,
+        host: HOST,
+        environment: config.app.nodeEnv,
+      });
+    });
+
+    // Simple test endpoint
+    app.get('/test', (req, res) => {
+      console.log('🧪 TEST endpoint called');
+      res.json({
+        message: 'Service is running correctly!',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        port: PORT,
+        host: HOST,
       });
     });
 
@@ -116,13 +131,15 @@ async function startServer() {
       });
     });
 
-    // Start server
+    // Start server - bind to 0.0.0.0 for container accessibility
     const PORT = config.app.port;
-    const server = app.listen(PORT, () => {
-      console.log(`🌐 Server running on port ${PORT}`);
+    const HOST = '0.0.0.0';
+    const server = app.listen(PORT, HOST, () => {
+      console.log(`🌐 Server running on ${HOST}:${PORT}`);
       console.log(`📡 Webhook URL: ${config.telegram.webhookUrl || 'Not configured'}`);
       console.log(`🏥 Health check: http://localhost:${PORT}/health`);
       console.log(`📊 Metrics: http://localhost:${PORT}/metrics`);
+      console.log(`🔗 External webhook: https://bot-telegram-bot.kmnpkd.easypanel.host/webhook`);
     });
 
     // Setup scheduled tasks
