@@ -7,6 +7,13 @@ import { StartupService } from './services/startupService';
 import { logger } from './utils/logger';
 import healthRoutes from './routes/health';
 
+// Prevent multiple instances
+if (process.env.STARTUP_LOCK && process.env.STARTUP_LOCK === 'true') {
+  console.log('⚠️ Another instance is already starting, exiting...');
+  process.exit(0);
+}
+process.env.STARTUP_LOCK = 'true';
+
 async function startServer() {
   try {
     logger.info('STARTUP', '🚀 Starting Telegram Crypto Bot...');
@@ -35,6 +42,15 @@ async function startServer() {
     
     // Setup routes
     app.use('/', healthRoutes);
+    
+    // Basic health endpoint before anything else
+    app.get('/alive', (req, res) => {
+      res.status(200).send('OK');
+    });
+    
+    app.get('/ping', (req, res) => {
+      res.status(200).json({ status: 'pong', timestamp: new Date().toISOString() });
+    });
     
     // Debug endpoint para webhook
     app.use('/webhook', (req, res, next) => {
@@ -73,6 +89,21 @@ async function startServer() {
         uptime: process.uptime(),
         port: PORT,
         host: HOST,
+        pid: process.pid,
+        startup_lock: process.env.STARTUP_LOCK,
+      });
+    });
+
+    // Instance info endpoint
+    app.get('/instance', (req, res) => {
+      res.json({
+        pid: process.pid,
+        ppid: process.ppid,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        startup_time: new Date().toISOString(),
+        node_version: process.version,
+        platform: process.platform,
       });
     });
 
@@ -134,12 +165,26 @@ async function startServer() {
     // Start server - bind to 0.0.0.0 for container accessibility
     const PORT = config.app.port;
     const HOST = '0.0.0.0';
+    
+    console.log(`🔧 CONFIGURAÇÃO DO SERVIDOR:`);
+    console.log(`   - HOST: ${HOST}`);
+    console.log(`   - PORT: ${PORT}`);
+    console.log(`   - NODE_ENV: ${config.app.nodeEnv}`);
+    console.log(`   - WEBHOOK_URL: ${config.telegram.webhookUrl || 'Not configured'}`);
+    
     const server = app.listen(PORT, HOST, () => {
-      console.log(`🌐 Server running on ${HOST}:${PORT}`);
+      console.log(`🌐 ✅ SERVER ATIVO EM ${HOST}:${PORT}`);
       console.log(`📡 Webhook URL: ${config.telegram.webhookUrl || 'Not configured'}`);
       console.log(`🏥 Health check: http://localhost:${PORT}/health`);
       console.log(`📊 Metrics: http://localhost:${PORT}/metrics`);
       console.log(`🔗 External webhook: https://bot-telegram-bot.kmnpkd.easypanel.host/webhook`);
+      console.log(`🧪 Test endpoint: https://bot-telegram-bot.kmnpkd.easypanel.host/test`);
+      console.log(`💓 Alive endpoint: https://bot-telegram-bot.kmnpkd.easypanel.host/alive`);
+    });
+    
+    server.on('error', (error) => {
+      console.error('❌ ERRO NO SERVIDOR:', error);
+      logger.error('SERVER', 'Erro no servidor', error);
     });
 
     // Setup scheduled tasks
@@ -159,6 +204,10 @@ async function startServer() {
       logger.info('SHUTDOWN', `📴 Received ${signal}, shutting down gracefully...`);
       
       try {
+        // Release startup lock
+        delete process.env.STARTUP_LOCK;
+        logger.info('SHUTDOWN', '🔓 Startup lock released');
+        
         // Stop bot
         bot.stop(signal);
         logger.info('SHUTDOWN', '✅ Bot stopped');
