@@ -1,15 +1,15 @@
 import express from 'express';
 import { Telegraf } from 'telegraf';
 import { setupBot } from './bot/bot';
-import { connectDatabase } from './config/database';
-import { connectRedis } from './config/redis';
 import { config, validateConfig } from './config';
 import { setupScheduledTasks } from './utils/scheduler';
+import { StartupService } from './services/startupService';
+import { logger } from './utils/logger';
 import healthRoutes from './routes/health';
 
 async function startServer() {
   try {
-    console.log('🚀 Starting Telegram Crypto Bot...');
+    logger.info('STARTUP', '🚀 Starting Telegram Crypto Bot...');
     
     // Validate configuration
     validateConfig();
@@ -21,13 +21,16 @@ async function startServer() {
     // Initialize bot
     const bot = new Telegraf(config.telegram.botToken);
     
-    // Connect to services
-    console.log('🔌 Connecting to services...');
-    await connectDatabase();
-    await connectRedis();
+    // Initialize startup service and run all checks
+    const startupService = new StartupService(bot);
+    const initSuccess = await startupService.initialize();
+    
+    if (!initSuccess) {
+      throw new Error('Falha na inicialização do sistema');
+    }
     
     // Setup bot
-    console.log('🤖 Setting up bot...');
+    logger.info('STARTUP', '🤖 Setting up bot...');
     setupBot(bot);
     
     // Setup routes
@@ -52,16 +55,32 @@ async function startServer() {
       try {
         const { userService } = await import('./services/userService');
         const stats = await userService.getUserStats();
+        const healthStatus = await startupService.healthCheck();
         
         res.json({
           uptime: process.uptime(),
           memory_usage: process.memoryUsage(),
           timestamp: new Date().toISOString(),
           user_stats: stats,
+          health: healthStatus,
         });
       } catch (error) {
         res.status(500).json({
           error: 'Failed to get metrics',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    });
+
+    // Enhanced health check endpoint
+    app.get('/health/detailed', async (req, res) => {
+      try {
+        const healthStatus = await startupService.healthCheck();
+        res.status(healthStatus.status === 'healthy' ? 200 : 503).json(healthStatus);
+      } catch (error) {
+        res.status(500).json({
+          status: 'unhealthy',
+          error: 'Health check failed',
           timestamp: new Date().toISOString(),
         });
       }
@@ -100,43 +119,41 @@ async function startServer() {
 
     // Configure webhook or polling based on environment
     if (config.app.nodeEnv === 'production' && config.telegram.webhookUrl) {
-      console.log('🔗 Setting up webhook...');
-      await bot.telegram.setWebhook(config.telegram.webhookUrl);
-      console.log('✅ Webhook configured successfully');
+      logger.info('STARTUP', '✅ Webhook configured automatically by startup service');
     } else {
-      console.log('🔄 Starting in polling mode...');
+      logger.info('STARTUP', '🔄 Starting in polling mode...');
       await bot.launch();
-      console.log('✅ Bot started in polling mode');
+      logger.info('STARTUP', '✅ Bot started in polling mode');
     }
 
     // Graceful shutdown handlers
     const gracefulShutdown = async (signal: string) => {
-      console.log(`\n📴 Received ${signal}, shutting down gracefully...`);
+      logger.info('SHUTDOWN', `📴 Received ${signal}, shutting down gracefully...`);
       
       try {
         // Stop bot
         bot.stop(signal);
-        console.log('✅ Bot stopped');
+        logger.info('SHUTDOWN', '✅ Bot stopped');
         
         // Close server
         server.close(() => {
-          console.log('✅ HTTP server closed');
+          logger.info('SHUTDOWN', '✅ HTTP server closed');
         });
         
         // Close database connection
         const { database } = await import('./config/database');
         await database.close();
-        console.log('✅ Database connection closed');
+        logger.info('SHUTDOWN', '✅ Database connection closed');
         
         // Close Redis connection
         const { redis } = await import('./config/redis');
         await redis.disconnect();
-        console.log('✅ Redis connection closed');
+        logger.info('SHUTDOWN', '✅ Redis connection closed');
         
-        console.log('👋 Shutdown completed successfully');
+        logger.info('SHUTDOWN', '👋 Shutdown completed successfully');
         process.exit(0);
       } catch (error) {
-        console.error('❌ Error during shutdown:', error);
+        logger.error('SHUTDOWN', '❌ Error during shutdown', error as Error);
         process.exit(1);
       }
     };
@@ -147,20 +164,23 @@ async function startServer() {
 
     // Handle uncaught exceptions
     process.on('uncaughtException', (error) => {
-      console.error('💥 Uncaught Exception:', error);
+      logger.error('SYSTEM', '💥 Uncaught Exception', error);
       gracefulShutdown('UNCAUGHT_EXCEPTION');
     });
 
     process.on('unhandledRejection', (reason, promise) => {
-      console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+      logger.error('SYSTEM', '💥 Unhandled Rejection', new Error(String(reason)), {
+        promise: String(promise),
+        reason: String(reason)
+      });
       gracefulShutdown('UNHANDLED_REJECTION');
     });
 
-    console.log('🎉 Bot started successfully!');
-    console.log('💡 Use /start to interact with the bot');
+    logger.info('STARTUP', '🎉 Bot started successfully!');
+    logger.info('STARTUP', '💡 Use /start to interact with the bot');
 
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
+    logger.error('STARTUP', '❌ Failed to start server', error as Error);
     process.exit(1);
   }
 }
