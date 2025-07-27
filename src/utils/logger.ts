@@ -283,12 +283,19 @@ class Logger {
   }
 
   securityEvent(event: string, severity: 'low' | 'medium' | 'high', metadata?: Record<string, any>): void {
-    const level = severity === 'high' ? 'error' : severity === 'medium' ? 'warn' : 'info';
-    this[level]('SECURITY', `Security event: ${event}`, {
+    const eventMetadata = {
       eventName: event,
       severity,
       ...metadata
-    });
+    };
+    
+    if (severity === 'high') {
+      this.error('SECURITY', `Security event: ${event}`, undefined, eventMetadata);
+    } else if (severity === 'medium') {
+      this.warn('SECURITY', `Security event: ${event}`, eventMetadata);
+    } else {
+      this.info('SECURITY', `Security event: ${event}`, eventMetadata);
+    }
   }
 
   performance(operation: string, duration: number, metadata?: Record<string, any>): void {
