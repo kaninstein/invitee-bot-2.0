@@ -154,9 +154,15 @@ export class MigrationRunner {
       const executedMigrations = await this.getExecutedMigrations();
       console.log(`✅ Migrations já executadas: ${executedMigrations.join(', ')}`);
 
+      // Verificar e marcar tabelas existentes como migradas
+      await this.markExistingTablesAsMigrated(availableMigrations, executedMigrations);
+
+      // Recarregar lista de migrations executadas após marcação
+      const updatedExecutedMigrations = await this.getExecutedMigrations();
+
       // Filtrar migrations pendentes
       const pendingMigrations = availableMigrations.filter(
-        migration => !executedMigrations.includes(migration.id)
+        migration => !updatedExecutedMigrations.includes(migration.id)
       );
 
       console.log(`⏳ Migrations pendentes: ${pendingMigrations.map(m => m.id).join(', ')}`);
@@ -182,6 +188,75 @@ export class MigrationRunner {
       console.log('💥 ERRO DURANTE EXECUÇÃO DE MIGRATIONS:', error);
       logger.error('MIGRATIONS', 'Erro durante execução de migrations', error as Error);
       throw error;
+    }
+  }
+
+  /**
+   * Verifica se as tabelas já existem e marca as migrations correspondentes como executadas
+   */
+  private async markExistingTablesAsMigrated(availableMigrations: Migration[], executedMigrations: string[]): Promise<void> {
+    console.log('🔍 Verificando tabelas existentes no banco...');
+    
+    // Mapear migrations para suas tabelas principais
+    const migrationTableMap: Record<string, string[]> = {
+      '001': ['users'],
+      '002': ['verification_sessions'],
+      '003': ['user_activities'],
+      '004': ['system_settings']
+    };
+
+    for (const migration of availableMigrations) {
+      // Pular se já foi executada
+      if (executedMigrations.includes(migration.id)) {
+        continue;
+      }
+
+      const tables = migrationTableMap[migration.id];
+      if (!tables) {
+        continue;
+      }
+
+      try {
+        // Verificar se todas as tabelas da migration existem
+        const allTablesExist = await this.checkTablesExist(tables);
+        
+        if (allTablesExist) {
+          console.log(`📝 Tabelas da migration ${migration.id} já existem, marcando como executada...`);
+          
+          const checksum = this.calculateChecksum(`${migration.id}_${migration.name}_existing`);
+          await this.markMigrationAsExecuted(migration.id, migration.name, checksum);
+          
+          console.log(`✅ Migration ${migration.id} marcada como executada (tabelas já existiam)`);
+        }
+      } catch (error) {
+        console.log(`⚠️ Erro ao verificar tabelas da migration ${migration.id}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Verifica se as tabelas especificadas existem no banco
+   */
+  private async checkTablesExist(tableNames: string[]): Promise<boolean> {
+    try {
+      for (const tableName of tableNames) {
+        const result = await database.query(
+          `SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = $1
+          );`,
+          [tableName]
+        );
+        
+        if (!result.rows[0].exists) {
+          return false;
+        }
+      }
+      return true;
+    } catch (error) {
+      console.log(`❌ Erro ao verificar existência da tabela:`, error);
+      return false;
     }
   }
 
