@@ -140,25 +140,34 @@ export class MigrationRunner {
    */
   async runPendingMigrations(): Promise<void> {
     try {
+      console.log('🚀 INICIANDO EXECUÇÃO DE MIGRATIONS...');
       logger.info('MIGRATIONS', 'Iniciando execução de migrations...');
 
       // Inicializar tabela de migrations
       await this.initializeMigrationsTable();
 
       // Carregar migrations disponíveis e executadas
+      console.log('📂 Carregando migrations disponíveis...');
       const availableMigrations = await this.loadAvailableMigrations();
+      console.log(`📂 Migrations disponíveis: ${availableMigrations.map(m => m.id).join(', ')}`);
+      
       const executedMigrations = await this.getExecutedMigrations();
+      console.log(`✅ Migrations já executadas: ${executedMigrations.join(', ')}`);
 
       // Filtrar migrations pendentes
       const pendingMigrations = availableMigrations.filter(
         migration => !executedMigrations.includes(migration.id)
       );
 
+      console.log(`⏳ Migrations pendentes: ${pendingMigrations.map(m => m.id).join(', ')}`);
+
       if (pendingMigrations.length === 0) {
+        console.log('✅ Nenhuma migration pendente encontrada');
         logger.info('MIGRATIONS', 'Nenhuma migration pendente encontrada');
         return;
       }
 
+      console.log(`🔄 Executando ${pendingMigrations.length} migrations pendentes...`);
       logger.info('MIGRATIONS', `Encontradas ${pendingMigrations.length} migrations pendentes`);
 
       // Executar migrations em sequência
@@ -166,9 +175,11 @@ export class MigrationRunner {
         await this.executeMigration(migration);
       }
 
+      console.log(`🎉 ${pendingMigrations.length} MIGRATIONS EXECUTADAS COM SUCESSO!`);
       logger.info('MIGRATIONS', `✅ ${pendingMigrations.length} migrations executadas com sucesso`);
 
     } catch (error) {
+      console.log('💥 ERRO DURANTE EXECUÇÃO DE MIGRATIONS:', error);
       logger.error('MIGRATIONS', 'Erro durante execução de migrations', error as Error);
       throw error;
     }
@@ -181,13 +192,16 @@ export class MigrationRunner {
     const startTime = Date.now();
     
     try {
+      console.log(`🔄 EXECUTANDO MIGRATION: ${migration.id} - ${migration.name}`);
       logger.info('MIGRATIONS', `Executando migration: ${migration.id} - ${migration.name}`);
 
       // Executar a migration em uma transação
       await database.query('BEGIN');
       
       try {
+        console.log(`   ⚙️ Executando migration.up() para ${migration.id}`);
         await migration.up();
+        console.log(`   ✅ migration.up() concluída para ${migration.id}`);
         
         // Calcular checksum - tentar arquivo físico primeiro, depois usar ID da migration
         let checksum = '';
@@ -209,15 +223,19 @@ export class MigrationRunner {
           checksum = this.calculateChecksum(`${migration.id}_${migration.name}`);
         }
 
+        console.log(`   📝 Marcando migration ${migration.id} como executada`);
         // Marcar como executada
         await this.markMigrationAsExecuted(migration.id, migration.name, checksum);
         
+        console.log(`   💾 Fazendo COMMIT da migration ${migration.id}`);
         await database.query('COMMIT');
         
         const duration = Date.now() - startTime;
+        console.log(`✅ MIGRATION ${migration.id} CONCLUÍDA em ${duration}ms`);
         logger.info('MIGRATIONS', `✅ Migration ${migration.id} executada em ${duration}ms`);
         
       } catch (error) {
+        console.log(`❌ ERRO na migration ${migration.id}, fazendo ROLLBACK:`, error);
         await database.query('ROLLBACK');
         throw error;
       }
@@ -225,6 +243,9 @@ export class MigrationRunner {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      console.log(`💥 ERRO FATAL na migration ${migration.id}:`, errorMessage);
+      console.log(`💥 STACK:`, errorStack);
       
       logger.error('MIGRATIONS', `❌ Erro na migration ${migration.id}: ${errorMessage}`, error as Error, {
         migrationId: migration.id,
