@@ -1,5 +1,6 @@
 import { database } from '../config/database';
 import { logger } from '../utils/logger';
+import { migrationRegistry } from './migrationRegistry';
 import fs from 'fs';
 import path from 'path';
 
@@ -14,7 +15,18 @@ export class MigrationRunner {
   private migrationsPath: string;
 
   constructor() {
-    this.migrationsPath = path.join(__dirname, 'migrations');
+    // Determinar o caminho das migrations baseado no ambiente
+    const isDist = __dirname.includes('dist');
+    
+    if (isDist) {
+      // Em produção (dist/), buscar na pasta dist
+      this.migrationsPath = path.join(__dirname, 'migrations');
+    } else {
+      // Em desenvolvimento, usar o caminho relativo
+      this.migrationsPath = path.join(__dirname, 'migrations');
+    }
+    
+    logger.debug('MIGRATIONS', `Caminho das migrations: ${this.migrationsPath}`);
   }
 
   /**
@@ -76,37 +88,50 @@ export class MigrationRunner {
   }
 
   /**
-   * Carrega todas as migrations disponíveis do diretório
+   * Carrega todas as migrations disponíveis do diretório ou do registry
    */
   private async loadAvailableMigrations(): Promise<Migration[]> {
-    const migrations: Migration[] = [];
+    let migrations: Migration[] = [];
 
-    if (!fs.existsSync(this.migrationsPath)) {
-      logger.warn('MIGRATIONS', `Diretório de migrations não encontrado: ${this.migrationsPath}`);
-      return migrations;
-    }
+    logger.info('MIGRATIONS', `Procurando migrations em: ${this.migrationsPath}`);
 
-    const files = fs.readdirSync(this.migrationsPath)
-      .filter(file => file.endsWith('.ts') || file.endsWith('.js'))
-      .sort();
+    // Tentar carregar migrations de arquivos primeiro
+    if (fs.existsSync(this.migrationsPath)) {
+      const files = fs.readdirSync(this.migrationsPath)
+        .filter(file => file.endsWith('.ts') || file.endsWith('.js'))
+        .sort();
 
-    for (const file of files) {
-      try {
-        const migrationPath = path.join(this.migrationsPath, file);
-        const migration = require(migrationPath);
-        
-        if (migration.default) {
-          migrations.push(migration.default);
-        } else if (migration.up && migration.down) {
-          migrations.push(migration);
-        } else {
-          logger.warn('MIGRATIONS', `Migration inválida: ${file}. Deve exportar 'up' e 'down' functions`);
+      logger.info('MIGRATIONS', `Encontrados ${files.length} arquivos de migration: ${files.join(', ')}`);
+
+      for (const file of files) {
+        try {
+          const migrationPath = path.join(this.migrationsPath, file);
+          logger.debug('MIGRATIONS', `Carregando migration: ${migrationPath}`);
+          
+          const migration = require(migrationPath);
+          
+          if (migration.default) {
+            logger.debug('MIGRATIONS', `Migration ${file} carregada (default export)`);
+            migrations.push(migration.default);
+          } else if (migration.up && migration.down) {
+            logger.debug('MIGRATIONS', `Migration ${file} carregada (named exports)`);
+            migrations.push(migration);
+          } else {
+            logger.warn('MIGRATIONS', `Migration inválida: ${file}. Deve exportar 'up' e 'down' functions`);
+          }
+        } catch (error) {
+          logger.error('MIGRATIONS', `Erro ao carregar migration ${file}`, error as Error);
         }
-      } catch (error) {
-        logger.error('MIGRATIONS', `Erro ao carregar migration ${file}`, error as Error);
       }
     }
 
+    // Se não encontrou migrations em arquivos, usar o registry embarcado
+    if (migrations.length === 0) {
+      logger.info('MIGRATIONS', 'Usando migrations do registry embarcado');
+      migrations = [...migrationRegistry];
+    }
+
+    logger.info('MIGRATIONS', `${migrations.length} migrations carregadas com sucesso`);
     return migrations;
   }
 
@@ -164,12 +189,24 @@ export class MigrationRunner {
       try {
         await migration.up();
         
-        // Calcular checksum do arquivo
-        const migrationFile = path.join(this.migrationsPath, `${migration.id}.ts`);
+        // Calcular checksum - tentar arquivo físico primeiro, depois usar ID da migration
         let checksum = '';
-        if (fs.existsSync(migrationFile)) {
-          const content = fs.readFileSync(migrationFile, 'utf8');
-          checksum = this.calculateChecksum(content);
+        
+        if (fs.existsSync(this.migrationsPath)) {
+          const files = fs.readdirSync(this.migrationsPath)
+            .filter(file => file.startsWith(`${migration.id}_`))
+            .filter(file => file.endsWith('.ts') || file.endsWith('.js'));
+          
+          if (files.length > 0) {
+            const migrationFile = path.join(this.migrationsPath, files[0]);
+            const content = fs.readFileSync(migrationFile, 'utf8');
+            checksum = this.calculateChecksum(content);
+          }
+        }
+        
+        // Se não encontrou arquivo, usar o ID da migration como checksum
+        if (!checksum) {
+          checksum = this.calculateChecksum(`${migration.id}_${migration.name}`);
         }
 
         // Marcar como executada
@@ -186,8 +223,16 @@ export class MigrationRunner {
       }
 
     } catch (error) {
-      logger.error('MIGRATIONS', `❌ Erro na migration ${migration.id}`, error as Error);
-      throw new Error(`Migration ${migration.id} falhou: ${(error as Error).message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      logger.error('MIGRATIONS', `❌ Erro na migration ${migration.id}: ${errorMessage}`, error as Error, {
+        migrationId: migration.id,
+        migrationName: migration.name,
+        errorStack
+      });
+      
+      throw new Error(`Migration ${migration.id} falhou: ${errorMessage}`);
     }
   }
 
