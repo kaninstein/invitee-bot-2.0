@@ -3,6 +3,7 @@ import { database } from '../config/database';
 import { redis } from '../config/redis';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { migrationRunner } from '../database/migrationRunner';
 import axios from 'axios';
 
 export class StartupService {
@@ -28,10 +29,13 @@ export class StartupService {
       // 3. Verificar e inicializar banco de dados
       await this.initializeDatabase();
       
-      // 4. Verificar conexão Redis
+      // 4. Executar migrations do banco de dados
+      await this.runDatabaseMigrations();
+      
+      // 5. Verificar conexão Redis
       await this.validateRedisConnection();
       
-      // 5. Validar API da Blofin
+      // 6. Validar API da Blofin
       await this.validateBlofinAPI();
       
       logger.info('STARTUP', '✅ Todas as verificações de inicialização foram bem-sucedidas!');
@@ -133,69 +137,37 @@ export class StartupService {
       // Verificar conexão
       await database.connect();
       
-      // Verificar se as tabelas existem
-      await this.createTablesIfNotExists();
-      
-      logger.info('STARTUP', '✅ Banco de dados inicializado com sucesso');
+      logger.info('STARTUP', '✅ Conexão com banco de dados estabelecida');
       
     } catch (error) {
-      logger.error('STARTUP', 'Erro ao inicializar banco de dados', error as Error);
+      logger.error('STARTUP', 'Erro ao conectar com banco de dados', error as Error);
       throw error;
     }
   }
 
   /**
-   * Cria as tabelas necessárias se elas não existirem
+   * Executa migrations do banco de dados
    */
-  private async createTablesIfNotExists(): Promise<void> {
-    logger.info('STARTUP', 'Verificando estrutura do banco de dados...');
+  private async runDatabaseMigrations(): Promise<void> {
+    logger.info('STARTUP', 'Verificando migrations do banco de dados...');
     
-    const createUsersTable = `
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        telegram_id VARCHAR(50) UNIQUE NOT NULL,
-        username VARCHAR(100),
-        first_name VARCHAR(100),
-        last_name VARCHAR(100),
-        blofin_uid VARCHAR(100),
-        referral_token VARCHAR(100) UNIQUE,
-        verification_status VARCHAR(20) DEFAULT 'pending',
-        verification_attempts INTEGER DEFAULT 0,
-        last_verification_attempt TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `;
-
-    const createVerificationSessionsTable = `
-      CREATE TABLE IF NOT EXISTS verification_sessions (
-        id SERIAL PRIMARY KEY,
-        session_token VARCHAR(100) UNIQUE NOT NULL,
-        telegram_id VARCHAR(50) NOT NULL,
-        blofin_uid VARCHAR(100),
-        status VARCHAR(20) DEFAULT 'pending',
-        attempts INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP NOT NULL
-      );
-    `;
-
-    const createIndexes = `
-      CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
-      CREATE INDEX IF NOT EXISTS idx_users_blofin_uid ON users(blofin_uid);
-      CREATE INDEX IF NOT EXISTS idx_verification_sessions_token ON verification_sessions(session_token);
-      CREATE INDEX IF NOT EXISTS idx_verification_sessions_telegram_id ON verification_sessions(telegram_id);
-    `;
-
     try {
-      await database.query(createUsersTable);
-      await database.query(createVerificationSessionsTable);
-      await database.query(createIndexes);
+      // Verificar se há migrations pendentes
+      const hasPending = await migrationRunner.hasPendingMigrations();
       
-      logger.info('STARTUP', '✅ Estrutura do banco de dados verificada/criada');
+      if (hasPending) {
+        logger.info('STARTUP', 'Executando migrations pendentes...');
+        await migrationRunner.runPendingMigrations();
+      } else {
+        logger.info('STARTUP', '✅ Todas as migrations já foram executadas');
+      }
+
+      // Mostrar status das migrations
+      const status = await migrationRunner.getMigrationStatus();
+      logger.info('STARTUP', `Status: ${status.executed.length} executadas, ${status.pending.length} pendentes`);
       
     } catch (error) {
-      logger.error('STARTUP', 'Erro ao criar estrutura do banco de dados', error as Error);
+      logger.error('STARTUP', 'Erro ao executar migrations', error as Error);
       throw error;
     }
   }
