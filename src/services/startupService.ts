@@ -99,6 +99,10 @@ export class StartupService {
       const webhookInfo = await this.bot.telegram.getWebhookInfo();
       const expectedUrl = config.telegram.webhookUrl;
       
+      if (!expectedUrl) {
+        throw new Error('TELEGRAM_WEBHOOK_URL não está configurado');
+      }
+      
       if (webhookInfo.url === expectedUrl) {
         logger.info('STARTUP', `✅ Webhook já configurado corretamente: ${expectedUrl}`);
         return;
@@ -134,8 +138,8 @@ export class StartupService {
     logger.info('STARTUP', 'Verificando conexão com banco de dados...');
     
     try {
-      // Verificar conexão
-      await database.connect();
+      // Testar conexão com uma query simples
+      await database.query('SELECT 1');
       
       logger.info('STARTUP', '✅ Conexão com banco de dados estabelecida');
       
