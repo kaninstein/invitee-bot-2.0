@@ -32,7 +32,7 @@ export const requestLoggingMiddleware = (req: Request, res: Response, next: Next
   });
   
   // Override res.end to log response
-  const originalEnd = res.end;
+  const originalEnd = res.end.bind(res);
   res.end = function(...args: any[]) {
     const duration = Date.now() - startTime;
     
@@ -57,7 +57,7 @@ export const requestLoggingMiddleware = (req: Request, res: Response, next: Next
       });
     }
     
-    originalEnd.apply(this, args);
+    return originalEnd(...args);
   };
   
   next();

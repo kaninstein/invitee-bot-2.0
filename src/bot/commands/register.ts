@@ -145,7 +145,7 @@ export async function handleUidInput(ctx: Context) {
       console.log(`✅ User verified successfully: ${telegramUser.id} with UID: ${uidInput}`);
       
     } else {
-      const user = await userService.getUserById(pendingState.userId);
+      const user = await userService.getUserByTelegramId(pendingState.userId);
       const remainingAttempts = user ? 3 - user.verification_attempts : 0;
       
       await ctx.reply(

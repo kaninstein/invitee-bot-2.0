@@ -20,7 +20,7 @@ export function loggingMiddleware(): MiddlewareFn<Context> {
         logData.message_length = message.text.length;
       }
 
-      if (ctx.callbackQuery) {
+      if (ctx.callbackQuery && 'data' in ctx.callbackQuery) {
         logData.callback_data = ctx.callbackQuery.data;
       }
 

@@ -80,7 +80,7 @@ export function setupBot(bot: Telegraf) {
   // Handler para callback queries (botões inline)
   bot.on('callback_query', async (ctx) => {
     try {
-      const data = ctx.callbackQuery.data;
+      const data = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
       
       if (data === 'refresh_status') {
         await statusCommand(ctx);

@@ -285,7 +285,7 @@ class Logger {
   securityEvent(event: string, severity: 'low' | 'medium' | 'high', metadata?: Record<string, any>): void {
     const level = severity === 'high' ? 'error' : severity === 'medium' ? 'warn' : 'info';
     this[level]('SECURITY', `Security event: ${event}`, {
-      event,
+      eventName: event,
       severity,
       ...metadata
     });

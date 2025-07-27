@@ -71,7 +71,7 @@ class BlofinService {
         'ACCESS-NONCE': nonce,
         'ACCESS-PASSPHRASE': this.passphrase,
         'X-REQUEST-ID': requestId,
-      };
+      } as any;
 
       logger.trace('BLOFIN_AUTH', `Request headers generated`, {
         requestId,

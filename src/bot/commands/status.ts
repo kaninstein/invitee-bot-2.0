@@ -1,6 +1,7 @@
 import { Context } from 'telegraf';
 import { userService } from '../../services/userService';
 import { blofinService } from '../../services/blofinService';
+import { config } from '../../config';
 
 export async function statusCommand(ctx: Context) {
   try {
@@ -88,7 +89,7 @@ ${statusIcon} **Status:** ${statusText}
 
     await ctx.reply(statusMessage, { 
       parse_mode: 'Markdown',
-      disable_web_page_preview: true 
+      link_preview_options: { is_disabled: true }
     });
 
   } catch (error) {

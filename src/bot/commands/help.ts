@@ -84,7 +84,7 @@ Se você continuar tendo problemas:
 
     await ctx.reply(helpMessage, { 
       parse_mode: 'Markdown',
-      disable_web_page_preview: true 
+      link_preview_options: { is_disabled: true }
     });
 
   } catch (error) {
