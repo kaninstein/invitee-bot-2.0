@@ -4,13 +4,16 @@ import { redis } from '../config/redis';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { migrationRunner } from '../database/migrationRunner';
+import { GroupSecurityService } from './groupSecurityService';
 import axios from 'axios';
 
 export class StartupService {
   private bot: Telegraf;
+  private groupSecurity: GroupSecurityService;
 
   constructor(bot: Telegraf) {
     this.bot = bot;
+    this.groupSecurity = new GroupSecurityService(bot);
   }
 
   /**
@@ -41,6 +44,9 @@ export class StartupService {
       
       // 6. Validar API da Blofin
       await this.validateBlofinAPI();
+      
+      // 7. Configurar segurança do grupo Telegram
+      await this.setupGroupSecurity();
       
       logger.info('STARTUP', '✅ Todas as verificações de inicialização foram bem-sucedidas!');
       return true;
@@ -235,6 +241,28 @@ export class StartupService {
     } catch (error) {
       logger.error('STARTUP', 'Erro ao validar API da Blofin', error as Error);
       throw error;
+    }
+  }
+
+  /**
+   * Configura segurança do grupo Telegram
+   */
+  private async setupGroupSecurity(): Promise<void> {
+    logger.info('STARTUP', 'Configurando segurança do grupo Telegram...');
+    
+    try {
+      const success = await this.groupSecurity.setupGroupSecurity();
+      
+      if (success) {
+        logger.info('STARTUP', '✅ Segurança do grupo configurada com sucesso');
+      } else {
+        logger.warn('STARTUP', '⚠️ Falha na configuração de segurança do grupo - continuando inicialização');
+      }
+      
+    } catch (error) {
+      logger.error('STARTUP', 'Erro ao configurar segurança do grupo', error as Error);
+      // Não interromper a inicialização por causa da segurança do grupo
+      logger.warn('STARTUP', 'Continuando inicialização sem configuração completa de segurança');
     }
   }
 

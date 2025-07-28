@@ -420,11 +420,11 @@ class BlofinService {
   generateReferralLink(telegramId?: string): string {
     const referralCode = config.blofin.referralCode;
     
-    // Usar o formato de link da documentação
-    let referralUrl = `https://partner.blofin.com/d/${referralCode}`;
+    // Usar o formato correto de link de registro
+    let referralUrl = `https://blofin.com/register?referral_code=${referralCode}`;
     
     if (telegramId) {
-      referralUrl += `?source=telegram_${telegramId}`;
+      referralUrl += `&source=telegram_${telegramId}`;
     }
     
     return referralUrl;

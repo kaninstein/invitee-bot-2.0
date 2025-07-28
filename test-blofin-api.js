@@ -121,8 +121,8 @@ async function testBlofinAPI() {
 
     // 4. Gerar link de referência
     console.log('\n4️⃣ Gerando links de referência...');
-    const baseLink = `https://partner.blofin.com/d/${BLOFIN_CONFIG.referralCode}`;
-    const telegramLink = `${baseLink}?source=telegram_test`;
+    const baseLink = `https://blofin.com/register?referral_code=${BLOFIN_CONFIG.referralCode}`;
+    const telegramLink = `${baseLink}&source=telegram_test`;
     console.log('✅ Links gerados:');
     console.log('   Base:', baseLink);
     console.log('   Telegram:', telegramLink);

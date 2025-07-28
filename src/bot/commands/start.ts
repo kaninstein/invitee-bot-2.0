@@ -3,9 +3,13 @@ import { userService } from '../../services/userService';
 import { blofinService } from '../../services/blofinService';
 import { config } from '../../config';
 import { redis } from '../../config/redis';
+import { GroupSecurityService } from '../../services/groupSecurityService';
 
 // Estado da sessão para aguardar UID do usuário no /start
 const pendingUidInput = new Map<number, { userId: number; step: 'waiting_uid' }>();
+
+// Instância do serviço de segurança do grupo (será inicializada quando necessário)
+let groupSecurity: GroupSecurityService | null = null;
 
 export async function startCommand(ctx: Context) {
   try {
@@ -162,11 +166,31 @@ export async function handleStartUidInput(ctx: Context) {
       // Marcar como verificado e dar acesso
       await userService.markUserAsVerified(pendingState.userId);
       
+      // Inicializar serviço de segurança se necessário
+      if (!groupSecurity && ctx.telegram) {
+        groupSecurity = new GroupSecurityService(ctx.telegram as any);
+      }
+      
+      // Criar link de convite único para usuário verificado
+      let inviteMessage = '';
+      try {
+        if (groupSecurity) {
+          const success = await groupSecurity.addVerifiedUser(telegramUser.id);
+          if (success) {
+            inviteMessage = '\n\n🔗 <b>Um link de convite único foi criado para você!</b>\n' +
+                          '📨 Verifique suas mensagens privadas para o link de acesso.';
+          }
+        }
+      } catch (error) {
+        console.warn('Falha ao criar link de convite único:', error);
+        inviteMessage = `\n\n🔗 <b>Link do grupo:</b> https://t.me/c/${config.telegram.groupId.replace('-100', '')}/1`;
+      }
+      
       await ctx.reply(
         '🎉 <b>Verificação concluída com sucesso!</b>\n\n' +
         '✅ Seu UID foi encontrado nos nossos afiliados!\n' +
-        '🚀 Você agora tem acesso ao grupo de calls cripto!\n\n' +
-        `🔗 <b>Link do grupo:</b> https://t.me/c/${config.telegram.groupId.replace('-100', '')}/1\n\n` +
+        '🚀 Você agora tem acesso ao grupo de calls cripto!' +
+        inviteMessage + '\n\n' +
         '💡 Bem-vindo ao grupo! Aproveite as calls exclusivas.',
         { parse_mode: 'HTML' }
       );

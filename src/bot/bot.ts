@@ -13,7 +13,13 @@ import { statusCommand } from './commands/status';
 import { helpCommand } from './commands/help';
 import { statsCommand, listUsersCommand, revokeAccessCommand, broadcastCommand } from './commands/admin';
 
+// Services
+import { GroupSecurityService } from '../services/groupSecurityService';
+
 export function setupBot(bot: Telegraf) {
+  // Inicializar serviço de segurança do grupo
+  const groupSecurity = new GroupSecurityService(bot);
+  
   // Error handling middleware (deve ser o primeiro)
   bot.use(errorHandler());
   
@@ -104,34 +110,13 @@ export function setupBot(bot: Telegraf) {
   bot.on('new_chat_members', async (ctx) => {
     try {
       const newMembers = ctx.message.new_chat_members;
+      const addedBy = ctx.from ? ctx.from.id : undefined;
       
       for (const member of newMembers) {
         if (member.is_bot) continue;
         
-        // Verificar se o novo membro tem permissão para estar no grupo
-        const user = await require('../services/userService').userService.getUserByTelegramId(member.id.toString());
-        
-        if (!user || !user.group_access) {
-          // Remover usuário não autorizado
-          try {
-            await ctx.banChatMember(member.id);
-            await ctx.reply(
-              `🚫 **Usuário removido**\n\n` +
-              `@${member.username || member.first_name} foi removido por não ter acesso autorizado.\n\n` +
-              `💡 Para obter acesso, use nosso bot: @${ctx.botInfo.username}`
-            );
-          } catch (banError) {
-            console.error('Error banning unauthorized user:', banError);
-          }
-        } else {
-          // Dar boas-vindas ao usuário autorizado
-          await ctx.reply(
-            `🎉 **Bem-vindo ao grupo, ${member.first_name}!**\n\n` +
-            `✅ Seu acesso foi verificado com sucesso.\n` +
-            `📈 Aproveite nossas calls exclusivas de cripto!\n\n` +
-            `💡 Use @${ctx.botInfo.username} para gerenciar sua conta.`
-          );
-        }
+        // Usar o serviço de segurança para processar novo membro
+        await groupSecurity.handleNewMember(member.id, addedBy);
       }
     } catch (error) {
       console.error('New chat members error:', error);
