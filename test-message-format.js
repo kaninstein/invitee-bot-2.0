@@ -1,14 +1,22 @@
+// Função para escapar caracteres especiais do MarkdownV2
+function escapeMarkdownV2(text) {
+  return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+}
+
 // Teste do formato da mensagem
+const firstName = "Ana Luiza";
+const referralLink = "https://blofin.com/register?referral_code=GoEEO9&source=telegram_8307895253";
+
 const testMessage = `🚀 *Bem\\-vindo ao Bot de Calls Cripto\\!*
 
-👋 Olá Ana Luiza\\!
+👋 Olá ${escapeMarkdownV2(firstName)}\\!
 
 Para ter acesso ao nosso grupo exclusivo de calls cripto:
 
 *🏦 PASSO 1: Cadastro na Blofin*
 • Se cadastre usando OBRIGATORIAMENTE este link:
-🔗 [Clique aqui para se cadastrar na Blofin](https://blofin.com/register?referral_code=GoEEO9&source=telegram_8307895253)
-📎 Link direto: https://blofin.com/register?referral_code=GoEEO9&source=telegram_8307895253
+🔗 [Clique aqui para se cadastrar na Blofin](${referralLink})
+📎 Link direto: ${escapeMarkdownV2(referralLink)}
 
 *📺 PASSO 2: Tutorial em Vídeo*
 • Assista como encontrar seu UID:

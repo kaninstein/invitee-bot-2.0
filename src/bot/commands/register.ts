@@ -131,7 +131,7 @@ export async function handleUidInput(ctx: Context) {
 
     if (isValidAffiliate) {
       // Marcar como verificado e dar acesso
-      await userService.markUserAsVerified(pendingState.userId);
+      await userService.markUserAsVerified(pendingState.userId, uidInput);
       
       await ctx.reply(
         '🎉 **Verificação concluída com sucesso!**\n\n' +

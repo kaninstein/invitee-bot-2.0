@@ -5,6 +5,11 @@ import { config } from '../../config';
 import { redis } from '../../config/redis';
 import { GroupSecurityService } from '../../services/groupSecurityService';
 
+// Função para escapar caracteres especiais do MarkdownV2
+function escapeMarkdownV2(text: string): string {
+  return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+}
+
 // Estado da sessão para aguardar UID do usuário no /start
 const pendingUidInput = new Map<number, { userId: number; step: 'waiting_uid' }>();
 
@@ -84,14 +89,14 @@ export async function startCommand(ctx: Context) {
     
     const welcomeMessage = `🚀 *Bem\\-vindo ao Bot de Calls Cripto\\!*
 
-👋 Olá ${firstName}\\!
+👋 Olá ${escapeMarkdownV2(firstName)}\\!
 
 Para ter acesso ao nosso grupo exclusivo de calls cripto:
 
 *🏦 PASSO 1: Cadastro na Blofin*
 • Se cadastre usando OBRIGATORIAMENTE este link:
 🔗 [Clique aqui para se cadastrar na Blofin](${referralLink})
-📎 Link direto: ${referralLink}
+📎 Link direto: ${escapeMarkdownV2(referralLink)}
 
 *📺 PASSO 2: Tutorial em Vídeo*
 • Assista como encontrar seu UID:
@@ -186,9 +191,32 @@ export async function handleStartUidInput(ctx: Context) {
     if (isValidAffiliate) {
       console.log(`✅ VERIFICATION SUCCESS | uid=${uidInput} | user=@${telegramUser.username} | marking as verified...`);
       
-      // Marcar como verificado e dar acesso
-      await userService.markUserAsVerified(pendingState.userId);
-      console.log(`✅ USER MARKED AS VERIFIED | userId=${pendingState.userId}`);
+      try {
+        // Marcar como verificado e dar acesso
+        await userService.markUserAsVerified(pendingState.userId, uidInput);
+        console.log(`✅ USER MARKED AS VERIFIED | userId=${pendingState.userId}`);
+      } catch (error) {
+        // Tratar erro de UID duplicado
+        if (error instanceof Error && error.message.includes('já está sendo usado')) {
+          console.log(`❌ DUPLICATE UID ERROR | uid=${uidInput} | user=@${telegramUser.username} | ${error.message}`);
+          
+          await ctx.reply(
+            '❌ *UID já cadastrado*\n\n' +
+            '⚠️ Este UID já está sendo usado por outro usuário\\.\n\n' +
+            '*Possíveis causas:*\n' +
+            '• Você já se verificou anteriormente\n' +
+            '• Outra pessoa já usou este UID\n' +
+            '• Erro no sistema\n\n' +
+            '📞 *Entre em contato com o suporte* para resolver esta situação\\.\n\n' +
+            '💡 Se você tem certeza que este é seu UID, forneça comprovantes ao suporte\\.',
+            { parse_mode: 'MarkdownV2' }
+          );
+          return;
+        }
+        
+        // Re-lançar outros erros
+        throw error;
+      }
       
       // Inicializar serviço de segurança se necessário
       if (!groupSecurity && ctx.telegram) {
@@ -240,7 +268,7 @@ export async function handleStartUidInput(ctx: Context) {
         '• Você não se cadastrou usando nosso link de afiliado\n' +
         '• O UID está incorreto\n' +
         '• O cadastro é muito recente \\(aguarde alguns minutos\\)\n\n' +
-        `🔗 *Certifique\\-se de usar este link:*\n[🔗 Clique aqui para se cadastrar na Blofin](${userReferralLink})\n📎 Link direto: ${userReferralLink}\n\n` +
+        `🔗 *Certifique\\-se de usar este link:*\n[🔗 Clique aqui para se cadastrar na Blofin](${userReferralLink})\n📎 Link direto: ${escapeMarkdownV2(userReferralLink)}\n\n` +
         `⚠️ Tentativas restantes: ${remainingAttempts}\n\n` +
         '💡 Use /start novamente para tentar com outro UID\\.',
         { parse_mode: 'MarkdownV2' }

@@ -76,21 +76,50 @@ class UserService {
   }
 
   /**
-   * Marcar usuário como verificado na Blofin
+   * Verificar se UID já está sendo usado por outro usuário
    */
-  async markUserAsVerified(userId: number): Promise<User> {
-    const query = `
-      UPDATE users 
-      SET blofin_verified = true, group_access = true, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *;
-    `;
+  async isUidAlreadyUsed(uid: string, excludeUserId?: number): Promise<User | null> {
+    let query = 'SELECT * FROM users WHERE blofin_uid = $1 AND blofin_verified = true';
+    let values = [uid];
+    
+    if (excludeUserId) {
+      query += ' AND id != $2';
+      values.push(excludeUserId.toString());
+    }
     
     try {
-      const result = await database.query(query, [userId]);
+      const result = await database.query(query, values);
+      return result.rows[0] || null;
+    } catch (error) {
+      console.error('Error checking if UID is already used:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Marcar usuário como verificado na Blofin
+   */
+  async markUserAsVerified(userId: number, uid: string): Promise<User> {
+    try {
+      // Verificar se o UID já está sendo usado por outro usuário
+      const existingUser = await this.isUidAlreadyUsed(uid, userId);
+      if (existingUser) {
+        throw new Error(`UID ${uid} já está sendo usado pelo usuário ${existingUser.telegram_id} (@${existingUser.username})`);
+      }
+
+      const query = `
+        UPDATE users 
+        SET blofin_uid = $1, blofin_verified = true, group_access = true, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
+        RETURNING *;
+      `;
+      
+      const result = await database.query(query, [uid, userId]);
       if (result.rows.length === 0) {
         throw new Error('User not found');
       }
+      
+      console.log(`✅ USER VERIFIED WITH UID | userId=${userId} | uid=${uid} | no duplicates`);
       return result.rows[0] as User;
     } catch (error) {
       console.error('Error marking user as verified:', error);
