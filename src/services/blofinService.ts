@@ -54,13 +54,8 @@ class BlofinService {
         hasPassphrase: !!this.passphrase
       });
       
-      // Gerar assinatura HMAC-SHA256 e converter para hex
-      const hexSignature = CryptoJS.HmacSHA256(prehash, this.secretKey).toString();
-      
-      // Converter hex para bytes e depois para Base64
-      const signature = CryptoJS.enc.Base64.stringify(
-        CryptoJS.enc.Utf8.parse(hexSignature)
-      );
+      // Generate HMAC-SHA256 signature and convert directly to base64
+      const signature = CryptoJS.HmacSHA256(prehash, this.secretKey).toString(CryptoJS.enc.Base64);
 
       // Headers conforme documentação da Blofin
       config.headers = {
