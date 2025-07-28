@@ -20,9 +20,20 @@ function createLock(): boolean {
       const lockData = JSON.parse(lockContent);
       const lockAge = Date.now() - lockData.timestamp;
       
-      // Se o lock tem mais de 5 minutos, consideramos órfão e removemos
-      if (lockAge > 5 * 60 * 1000) {
-        console.log('🧹 Removing stale lock file');
+      // Check if the process is actually running
+      let processRunning = false;
+      try {
+        // Check if PID exists and is running
+        process.kill(lockData.pid, 0);
+        processRunning = true;
+      } catch (error) {
+        // Process doesn't exist
+        processRunning = false;
+      }
+      
+      // Se o lock tem mais de 5 minutos OU o processo não está rodando, consideramos órfão
+      if (lockAge > 5 * 60 * 1000 || !processRunning) {
+        console.log(`🧹 Removing stale lock file (age: ${Math.round(lockAge/1000)}s, process running: ${processRunning})`);
         fs.unlinkSync(LOCK_FILE);
       } else {
         console.log(`⚠️ Another instance is running (PID: ${lockData.pid}), exiting...`);
@@ -55,6 +66,43 @@ function removeLock(): void {
     console.error('❌ Error removing lock:', error);
   }
 }
+
+// Function to cleanup any existing bot processes
+function cleanupExistingBots(): void {
+  try {
+    console.log('🧹 Checking for existing bot processes...');
+    const { execSync } = require('child_process');
+    
+    // Find any existing node processes running the bot
+    try {
+      const processes = execSync('pgrep -f "telegram.*bot|bot.*telegram|ts-node.*index|node.*index"', { encoding: 'utf8' }).trim();
+      if (processes) {
+        const pids = processes.split('\n').filter((pid: string) => pid !== process.pid.toString());
+        if (pids.length > 0) {
+          console.log(`🔪 Found existing bot processes: ${pids.join(', ')}`);
+          for (const pid of pids) {
+            try {
+              process.kill(parseInt(pid), 'SIGTERM');
+              console.log(`🔪 Terminated process ${pid}`);
+            } catch (error) {
+              console.log(`⚠️ Could not terminate process ${pid}:`, error);
+            }
+          }
+          // Wait a bit for processes to die
+          setTimeout(() => {}, 2000);
+        }
+      }
+    } catch (error) {
+      // No processes found, which is fine
+      console.log('✅ No existing bot processes found');
+    }
+  } catch (error) {
+    console.log('⚠️ Error during cleanup:', error);
+  }
+}
+
+// Cleanup existing bots first
+cleanupExistingBots();
 
 // Criar lock na inicialização
 if (!createLock()) {
@@ -265,8 +313,23 @@ async function startServer() {
     
     if (usePolling) {
       logger.info('STARTUP', '🔄 Starting in polling mode (TEMPORARY - bypass network issues)...');
-      await bot.launch();
-      logger.info('STARTUP', '✅ Bot started in polling mode');
+      
+      try {
+        // Clear any existing webhook first to avoid conflicts
+        logger.info('STARTUP', '🧹 Clearing existing webhook for polling mode...');
+        await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+        logger.info('STARTUP', '✅ Webhook cleared successfully');
+        
+        // Small delay to ensure webhook is fully cleared
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Start polling
+        await bot.launch();
+        logger.info('STARTUP', '✅ Bot started in polling mode');
+      } catch (error) {
+        logger.error('STARTUP', 'Failed to start bot in polling mode', error as Error);
+        throw error;
+      }
     } else {
       logger.info('STARTUP', '✅ Webhook configured automatically by startup service');
     }
