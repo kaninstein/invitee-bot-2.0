@@ -155,14 +155,14 @@ class BlofinService {
   }
 
   async verifyUserByUid(uid: string): Promise<boolean> {
-    logger.debug('🔍 BLOFIN VERIFICATION START', { uid });
+    logger.debug('🔍 BLOFIN VERIFICATION START INITIATED', { uid });
     const response = await this.getDirectInvitees({ uid, limit: 1 });
-    logger.debug('📊 BLOFIN VERIFICATION RESPONSE', { code: response.code, data: response.data });
+    logger.debug('📊 BLOFIN VERIFICATION RESPONSE', { code: response.code, hasData: Array.isArray(response.data), length: response.data?.length });
     if (isSuccessCode(response.code) && Array.isArray(response.data) && response.data.length > 0) return true;
     const limits = [200, 100, 50];
     for (const limit of limits) {
       const generalResponse = await this.getDirectInvitees({ limit });
-      logger.debug(`📊 BLOFIN GENERAL RESPONSE (limit=${limit})`, { dataLength: generalResponse.data?.length });
+      logger.debug('📊 BLOFIN GENERAL RESPONSE', { limit, dataLength: generalResponse.data?.length });
       if (Array.isArray(generalResponse.data) && generalResponse.data.some((u) => u.uid === uid)) return true;
     }
     return false;
