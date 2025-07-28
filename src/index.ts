@@ -78,7 +78,10 @@ async function startServer() {
     
     // Initialize startup service and run all checks
     const startupService = new StartupService(bot);
-    const initSuccess = await startupService.initialize();
+    
+    // Check if we'll use polling mode to skip webhook setup
+    const usePolling = true; // TEMPORARILY FORCE POLLING MODE
+    const initSuccess = await startupService.initialize(usePolling ? 'polling' : 'webhook');
     
     if (!initSuccess) {
       throw new Error('Falha na inicialização do sistema');

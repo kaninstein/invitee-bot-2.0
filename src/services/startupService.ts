@@ -16,15 +16,19 @@ export class StartupService {
   /**
    * Executa todas as verificações e configurações de inicialização
    */
-  async initialize(): Promise<boolean> {
+  async initialize(mode: 'webhook' | 'polling' = 'webhook'): Promise<boolean> {
     logger.info('STARTUP', 'Iniciando verificações de sistema...');
     
     try {
       // 1. Verificar variáveis de ambiente obrigatórias
       await this.validateEnvironmentVariables();
       
-      // 2. Configurar webhook do Telegram
-      await this.setupTelegramWebhook();
+      // 2. Configurar webhook do Telegram (apenas se não for polling mode)
+      if (mode === 'webhook') {
+        await this.setupTelegramWebhook();
+      } else {
+        logger.info('STARTUP', '🔄 Pulando configuração do webhook (modo polling ativo)');
+      }
       
       // 3. Verificar e inicializar banco de dados
       await this.initializeDatabase();
