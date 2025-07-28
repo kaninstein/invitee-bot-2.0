@@ -90,11 +90,11 @@ Para ter acesso ao nosso grupo exclusivo de calls cripto:
 
 <b>🏦 PASSO 1: Cadastro na Blofin</b>
 • Se cadastre usando OBRIGATORIAMENTE este link:
-<code>${referralLink}</code>
+<a href="${referralLink}">🔗 Clique aqui para se cadastrar na Blofin</a>
 
 <b>📺 PASSO 2: Tutorial em Vídeo</b>
 • Assista como encontrar seu UID:
-🎥 https://www.loom.com/share/seu-tutorial-uid
+🎥 <a href="https://www.loom.com/share/seu-tutorial-uid">Tutorial - Como encontrar seu UID</a>
 
 <b>🔍 PASSO 3: Envie seu UID</b>
 • Após se cadastrar, me envie seu UID da Blofin
@@ -141,8 +141,11 @@ export async function handleStartUidInput(ctx: Context) {
 
     const uidInput = message.text.trim();
     
+    console.log(`🔍 UID VERIFICATION STARTED | user=@${telegramUser.username} | uid=${uidInput}`);
+    
     // Validar formato do UID (apenas números, entre 8-15 dígitos)
     if (!/^\d{8,15}$/.test(uidInput)) {
+      console.log(`❌ INVALID UID FORMAT | uid=${uidInput} | pattern=failed`);
       await ctx.reply(
         '❌ <b>UID inválido</b>\n\n' +
         '🔢 O UID deve conter apenas números e ter entre 8-15 dígitos.\n\n' +
@@ -153,6 +156,7 @@ export async function handleStartUidInput(ctx: Context) {
       return;
     }
 
+    console.log(`✅ UID FORMAT VALID | uid=${uidInput} | proceeding to API verification`);
     await ctx.reply('🔍 <b>Verificando seu UID na Blofin...</b>\n\nPor favor, aguarde...', { parse_mode: 'HTML' });
 
     // Limpar estado de espera
@@ -165,16 +169,24 @@ export async function handleStartUidInput(ctx: Context) {
     
     if (!isTestMode) {
       await userService.incrementVerificationAttempts(pendingState.userId);
+      console.log(`📊 VERIFICATION ATTEMPTS INCREMENTED | userId=${pendingState.userId}`);
     } else {
       console.log(`🧪 Skipping verification attempts increment - TEST MODE`);
     }
 
     // Verificar UID na API da Blofin
+    console.log(`🌐 CALLING BLOFIN API | uid=${uidInput} | starting verification...`);
+    const startTime = Date.now();
     const isValidAffiliate = await blofinService.verifyUserByUid(uidInput);
+    const endTime = Date.now();
+    console.log(`🌐 BLOFIN API RESPONSE | uid=${uidInput} | result=${isValidAffiliate} | duration=${endTime - startTime}ms`);
 
     if (isValidAffiliate) {
+      console.log(`✅ VERIFICATION SUCCESS | uid=${uidInput} | user=@${telegramUser.username} | marking as verified...`);
+      
       // Marcar como verificado e dar acesso
       await userService.markUserAsVerified(pendingState.userId);
+      console.log(`✅ USER MARKED AS VERIFIED | userId=${pendingState.userId}`);
       
       // Inicializar serviço de segurança se necessário
       if (!groupSecurity && ctx.telegram) {
@@ -185,14 +197,16 @@ export async function handleStartUidInput(ctx: Context) {
       let inviteMessage = '';
       try {
         if (groupSecurity) {
+          console.log(`🔗 CREATING INVITE LINK | user=@${telegramUser.username}`);
           const success = await groupSecurity.addVerifiedUser(telegramUser.id);
           if (success) {
             inviteMessage = '\n\n🔗 <b>Um link de convite único foi criado para você!</b>\n' +
                           '📨 Verifique suas mensagens privadas para o link de acesso.';
+            console.log(`✅ INVITE LINK CREATED | user=@${telegramUser.username}`);
           }
         }
       } catch (error) {
-        console.warn('Falha ao criar link de convite único:', error);
+        console.warn(`❌ INVITE LINK CREATION FAILED | user=@${telegramUser.username} | error:`, error);
         inviteMessage = `\n\n🔗 <b>Link do grupo:</b> https://t.me/c/${config.telegram.groupId.replace('-100', '')}/1`;
       }
       
@@ -206,11 +220,15 @@ export async function handleStartUidInput(ctx: Context) {
       );
 
       // Log da verificação bem-sucedida
-      console.log(`✅ User verified successfully: ${telegramUser.id} with UID: ${uidInput}`);
+      console.log(`✅ VERIFICATION COMPLETE | user=@${telegramUser.username} | uid=${uidInput} | SUCCESS`);
       
     } else {
+      console.log(`❌ VERIFICATION FAILED | uid=${uidInput} | user=@${telegramUser.username} | not found in affiliates`);
+      
       const user = await userService.getUserByTelegramId(pendingState.userId.toString());
       const remainingAttempts = user ? 3 - user.verification_attempts : 0;
+      
+      console.log(`📊 VERIFICATION ATTEMPTS | user=@${telegramUser.username} | remaining=${remainingAttempts}`);
       
       const userReferralLink = blofinService.generateReferralLink(telegramUser.id.toString());
       await ctx.reply(
@@ -220,11 +238,13 @@ export async function handleStartUidInput(ctx: Context) {
         '• Você não se cadastrou usando nosso link de afiliado\n' +
         '• O UID está incorreto\n' +
         '• O cadastro é muito recente (aguarde alguns minutos)\n\n' +
-        `🔗 <b>Certifique-se de usar este link:</b>\n<code>${userReferralLink}</code>\n\n` +
+        `🔗 <b>Certifique-se de usar este link:</b>\n<a href="${userReferralLink}">🔗 Clique aqui para se cadastrar na Blofin</a>\n\n` +
         `⚠️ Tentativas restantes: ${remainingAttempts}\n\n` +
         '💡 Use /start novamente para tentar com outro UID.',
         { parse_mode: 'HTML' }
       );
+      
+      console.log(`❌ VERIFICATION COMPLETE | user=@${telegramUser.username} | uid=${uidInput} | FAILED`);
     }
 
   } catch (error) {

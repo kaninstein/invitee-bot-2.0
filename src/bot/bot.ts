@@ -48,39 +48,50 @@ export function setupBot(bot: Telegraf) {
     const telegramUser = ctx.from;
     if (!telegramUser) return;
 
+    // Verificar se é uma conversa em grupo
+    const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+    
+    // Se for grupo, ignorar mensagens que não começam com /
+    if (isGroup && !ctx.message.text.startsWith('/')) {
+      return; // Não processar mensagens normais em grupos
+    }
+
     // Verificar se o usuário está aguardando input de UID
     if (pendingUidInput.has(telegramUser.id)) {
       await handleStartUidInput(ctx);
       return;
     }
 
-    const message = ctx.message.text.toLowerCase();
-    
-    // Respostas para mensagens comuns
-    if (message.includes('ajuda') || message.includes('help')) {
-      await helpCommand(ctx);
-      return;
-    }
+    // Só processar palavras-chave em conversas privadas
+    if (!isGroup) {
+      const message = ctx.message.text.toLowerCase();
+      
+      // Respostas para mensagens comuns apenas em privado
+      if (message.includes('ajuda') || message.includes('help')) {
+        await helpCommand(ctx);
+        return;
+      }
 
-    if (message.includes('status') || message.includes('situação')) {
-      await statusCommand(ctx);
-      return;
-    }
+      if (message.includes('status') || message.includes('situação')) {
+        await statusCommand(ctx);
+        return;
+      }
 
-    if (message.includes('registrar') || message.includes('verificar') || message.includes('cadastrar')) {
-      await startCommand(ctx);
-      return;
-    }
+      if (message.includes('registrar') || message.includes('verificar') || message.includes('cadastrar')) {
+        await startCommand(ctx);
+        return;
+      }
 
-    // Mensagem padrão para texto não reconhecido
-    await ctx.reply(
-      '🤖 **Comando não reconhecido**\n\n' +
-      'Use um dos comandos disponíveis:\n\n' +
-      '/start - Cadastro e verificação\n' +
-      '/status - Ver seu status\n' +
-      '/help - Ajuda e suporte\n\n' +
-      '💡 Digite /start para começar.'
-    );
+      // Mensagem padrão para texto não reconhecido apenas em privado
+      await ctx.reply(
+        '🤖 **Comando não reconhecido**\n\n' +
+        'Use um dos comandos disponíveis:\n\n' +
+        '/start - Cadastro e verificação\n' +
+        '/status - Ver seu status\n' +
+        '/help - Ajuda e suporte\n\n' +
+        '💡 Digite /start para começar.'
+      );
+    }
   });
 
   // Handler para callback queries (botões inline)

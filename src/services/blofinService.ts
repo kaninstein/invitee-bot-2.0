@@ -138,16 +138,46 @@ class BlofinService {
 
   async verifyUserByUid(uid: string): Promise<boolean> {
     logger.debug('BLOFIN_SERVICE', `🔍 BLOFIN VERIFICATION START INITIATED | uid=${uid}`);
-    const response = await this.getDirectInvitees({ uid, limit: 1 });
-    logger.debug('BLOFIN_SERVICE', `📊 BLOFIN VERIFICATION RESPONSE | code=${response.code}, hasData=${Array.isArray(response.data)}, length=${response.data?.length}`);
-    if (isSuccessCode(response.code) && Array.isArray(response.data) && response.data.length > 0) return true;
-    const limits = [200, 100, 50];
-    for (const limit of limits) {
-      const generalResponse = await this.getDirectInvitees({ limit });
-      logger.debug('BLOFIN_SERVICE', `📊 BLOFIN GENERAL RESPONSE | limit=${limit}, dataLength=${generalResponse.data?.length}`);
-      if (Array.isArray(generalResponse.data) && generalResponse.data.some((u) => u.uid === uid)) return true;
+    
+    try {
+      // Primeiro: busca direta por UID
+      console.log(`🎯 BLOFIN DIRECT SEARCH | uid=${uid} | method=direct`);
+      const response = await this.getDirectInvitees({ uid, limit: 1 });
+      console.log(`📊 BLOFIN DIRECT RESPONSE | uid=${uid} | code=${response.code} | success=${isSuccessCode(response.code)} | hasData=${Array.isArray(response.data)} | length=${response.data?.length}`);
+      
+      if (isSuccessCode(response.code) && Array.isArray(response.data) && response.data.length > 0) {
+        console.log(`✅ BLOFIN VERIFICATION SUCCESS | uid=${uid} | method=direct | found=${response.data[0]?.uid}`);
+        return true;
+      }
+      
+      // Segundo: busca geral com diferentes limites
+      const limits = [200, 100, 50];
+      for (const limit of limits) {
+        console.log(`🔍 BLOFIN GENERAL SEARCH | uid=${uid} | limit=${limit}`);
+        const generalResponse = await this.getDirectInvitees({ limit });
+        console.log(`📊 BLOFIN GENERAL RESPONSE | uid=${uid} | limit=${limit} | code=${generalResponse.code} | dataLength=${generalResponse.data?.length}`);
+        
+        if (Array.isArray(generalResponse.data)) {
+          const foundUser = generalResponse.data.find((u) => u.uid === uid);
+          if (foundUser) {
+            console.log(`✅ BLOFIN VERIFICATION SUCCESS | uid=${uid} | method=general | limit=${limit} | foundUser=${JSON.stringify(foundUser)}`);
+            return true;
+          }
+          
+          // Log alguns UIDs para debug
+          const sampleUids = generalResponse.data.slice(0, 5).map(u => u.uid);
+          console.log(`📋 BLOFIN SAMPLE UIDS | limit=${limit} | sampleUids=[${sampleUids.join(', ')}] | total=${generalResponse.data.length}`);
+        }
+      }
+      
+      console.log(`❌ BLOFIN VERIFICATION FAILED | uid=${uid} | searched all limits, not found`);
+      return false;
+      
+    } catch (error) {
+      console.error(`❌ BLOFIN VERIFICATION ERROR | uid=${uid} | error:`, error);
+      logger.error('BLOFIN_SERVICE', `❌ BLOFIN VERIFICATION ERROR | uid=${uid}`, error as Error);
+      return false;
     }
-    return false;
   }
 
   async getReferralCodeInfo(): Promise<BlofinApiResponse> {
