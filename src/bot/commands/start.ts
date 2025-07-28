@@ -66,8 +66,8 @@ export async function startCommand(ctx: Context) {
       console.log(`🧪 Rate limiting disabled for /start command - TEST MODE`);
     }
 
-    // Verificar se já atingiu o limite de tentativas de verificação
-    if (user.verification_attempts >= 3) {
+    // Verificar se já atingiu o limite de tentativas de verificação (skip in test mode)
+    if (!isTestMode && user.verification_attempts >= 3) {
       await ctx.reply(
         '❌ <b>Limite de tentativas de verificação atingido</b>\n\n' +
         'Você já tentou verificar seu cadastro 3 vezes sem sucesso.\n\n' +
@@ -76,6 +76,8 @@ export async function startCommand(ctx: Context) {
         { parse_mode: 'HTML' }
       );
       return;
+    } else if (isTestMode && user.verification_attempts >= 3) {
+      console.log(`🧪 Bypassing verification attempts limit (${user.verification_attempts}) - TEST MODE`);
     }
 
     const referralLink = blofinService.generateReferralLink(telegramUser.id.toString());
@@ -156,8 +158,16 @@ export async function handleStartUidInput(ctx: Context) {
     // Limpar estado de espera
     pendingUidInput.delete(telegramUser.id);
 
-    // Incrementar tentativas de verificação
-    await userService.incrementVerificationAttempts(pendingState.userId);
+    // Incrementar tentativas de verificação (skip in test mode)
+    const isTestMode = process.env.NODE_ENV === 'development' || 
+                      process.env.DISABLE_RATE_LIMIT === 'true' ||
+                      process.env.TEST_MODE === 'true';
+    
+    if (!isTestMode) {
+      await userService.incrementVerificationAttempts(pendingState.userId);
+    } else {
+      console.log(`🧪 Skipping verification attempts increment - TEST MODE`);
+    }
 
     // Verificar UID na API da Blofin
     const isValidAffiliate = await blofinService.verifyUserByUid(uidInput);
