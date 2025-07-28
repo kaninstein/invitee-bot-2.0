@@ -7,12 +7,60 @@ import { StartupService } from './services/startupService';
 import { logger } from './utils/logger';
 import healthRoutes from './routes/health';
 
-// Prevent multiple instances
-if (process.env.STARTUP_LOCK && process.env.STARTUP_LOCK === 'true') {
-  console.log('⚠️ Another instance is already starting, exiting...');
-  process.exit(0);
+// Prevent multiple instances with file-based lock
+import fs from 'fs';
+import path from 'path';
+
+const LOCK_FILE = path.join('/tmp', 'telegram-bot.lock');
+
+function createLock(): boolean {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      const lockContent = fs.readFileSync(LOCK_FILE, 'utf8');
+      const lockData = JSON.parse(lockContent);
+      const lockAge = Date.now() - lockData.timestamp;
+      
+      // Se o lock tem mais de 5 minutos, consideramos órfão e removemos
+      if (lockAge > 5 * 60 * 1000) {
+        console.log('🧹 Removing stale lock file');
+        fs.unlinkSync(LOCK_FILE);
+      } else {
+        console.log(`⚠️ Another instance is running (PID: ${lockData.pid}), exiting...`);
+        process.exit(0);
+      }
+    }
+    
+    // Criar novo lock
+    const lockData = {
+      pid: process.pid,
+      timestamp: Date.now(),
+      started: new Date().toISOString()
+    };
+    fs.writeFileSync(LOCK_FILE, JSON.stringify(lockData));
+    console.log(`🔒 Lock created for PID ${process.pid}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error creating lock:', error);
+    return false;
+  }
 }
-process.env.STARTUP_LOCK = 'true';
+
+function removeLock(): void {
+  try {
+    if (fs.existsSync(LOCK_FILE)) {
+      fs.unlinkSync(LOCK_FILE);
+      console.log('🔓 Lock removed');
+    }
+  } catch (error) {
+    console.error('❌ Error removing lock:', error);
+  }
+}
+
+// Criar lock na inicialização
+if (!createLock()) {
+  console.log('❌ Failed to create lock, exiting...');
+  process.exit(1);
+}
 
 async function startServer() {
   try {
@@ -96,6 +144,16 @@ async function startServer() {
 
     // Instance info endpoint
     app.get('/instance', (req, res) => {
+      let lockInfo = null;
+      try {
+        if (fs.existsSync(LOCK_FILE)) {
+          const lockContent = fs.readFileSync(LOCK_FILE, 'utf8');
+          lockInfo = JSON.parse(lockContent);
+        }
+      } catch (error) {
+        lockInfo = { error: 'Failed to read lock file' };
+      }
+      
       res.json({
         pid: process.pid,
         ppid: process.ppid,
@@ -104,6 +162,8 @@ async function startServer() {
         startup_time: new Date().toISOString(),
         node_version: process.version,
         platform: process.platform,
+        lock_file: LOCK_FILE,
+        lock_info: lockInfo,
       });
     });
 
@@ -204,9 +264,9 @@ async function startServer() {
       logger.info('SHUTDOWN', `📴 Received ${signal}, shutting down gracefully...`);
       
       try {
-        // Release startup lock
-        delete process.env.STARTUP_LOCK;
-        logger.info('SHUTDOWN', '🔓 Startup lock released');
+        // Remove lock file
+        removeLock();
+        logger.info('SHUTDOWN', '🔓 Lock file removed');
         
         // Stop bot
         bot.stop(signal);
@@ -231,6 +291,7 @@ async function startServer() {
         process.exit(0);
       } catch (error) {
         logger.error('SHUTDOWN', '❌ Error during shutdown', error as Error);
+        removeLock(); // Garantir que o lock seja removido mesmo em caso de erro
         process.exit(1);
       }
     };
@@ -242,6 +303,7 @@ async function startServer() {
     // Handle uncaught exceptions
     process.on('uncaughtException', (error) => {
       logger.error('SYSTEM', '💥 Uncaught Exception', error);
+      removeLock();
       gracefulShutdown('UNCAUGHT_EXCEPTION');
     });
 
@@ -250,7 +312,13 @@ async function startServer() {
         promise: String(promise),
         reason: String(reason)
       });
+      removeLock();
       gracefulShutdown('UNHANDLED_REJECTION');
+    });
+
+    // Remove lock on normal exit
+    process.on('exit', () => {
+      removeLock();
     });
 
     logger.info('STARTUP', '🎉 Bot started successfully!');
