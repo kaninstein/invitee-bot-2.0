@@ -63,6 +63,7 @@ export interface Config {
     nodeEnv: string;
     jwtSecret: string;
     encryptionKey: string;
+    testMode: boolean;
   };
   rateLimit: {
     windowMs: number;

@@ -40,17 +40,25 @@ export async function startCommand(ctx: Context) {
       return;
     }
 
-    // Rate limiting para evitar spam
-    const rateLimitKey = `start_attempts:${telegramUser.id}`;
-    const canProceed = await redis.setRateLimit(rateLimitKey, 5, 3600);
+    // Rate limiting para evitar spam (skip in test mode)
+    const isTestMode = process.env.NODE_ENV === 'development' || 
+                      process.env.DISABLE_RATE_LIMIT === 'true' ||
+                      process.env.TEST_MODE === 'true';
     
-    if (!canProceed) {
-      await ctx.reply(
-        '⏳ *Limite de tentativas atingido*\n\n' +
-        'Você pode tentar novamente em 1 hora.\n\n' +
-        'Se você já se cadastrou na Blofin, entre em contato com o suporte.'
-      );
-      return;
+    if (!isTestMode) {
+      const rateLimitKey = `start_attempts:${telegramUser.id}`;
+      const canProceed = await redis.setRateLimit(rateLimitKey, 5, 3600);
+      
+      if (!canProceed) {
+        await ctx.reply(
+          '⏳ *Limite de tentativas atingido*\n\n' +
+          'Você pode tentar novamente em 1 hora.\n\n' +
+          'Se você já se cadastrou na Blofin, entre em contato com o suporte.'
+        );
+        return;
+      }
+    } else {
+      console.log(`🧪 Rate limiting disabled for /start command - TEST MODE`);
     }
 
     // Verificar se já atingiu o limite de tentativas de verificação

@@ -43,6 +43,7 @@ export const config: Config = {
     nodeEnv: getEnvVar('NODE_ENV', 'development'),
     jwtSecret: getEnvVar('JWT_SECRET'),
     encryptionKey: getEnvVar('ENCRYPTION_KEY'),
+    testMode: process.env.TEST_MODE === 'true' || process.env.DISABLE_RATE_LIMIT === 'true',
   },
   rateLimit: {
     windowMs: getEnvNumber('RATE_LIMIT_WINDOW_MS', 900000), // 15 minutos

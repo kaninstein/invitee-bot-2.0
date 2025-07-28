@@ -235,6 +235,7 @@ async function startServer() {
     console.log(`   - HOST: ${HOST}`);
     console.log(`   - PORT: ${PORT}`);
     console.log(`   - NODE_ENV: ${config.app.nodeEnv}`);
+    console.log(`   - TEST_MODE: ${config.app.testMode ? '🧪 ATIVO (Rate limiting desabilitado)' : '❌ Inativo'}`);
     console.log(`   - WEBHOOK_URL: ${config.telegram.webhookUrl || 'Not configured'}`);
     
     const server = app.listen(PORT, HOST, () => {

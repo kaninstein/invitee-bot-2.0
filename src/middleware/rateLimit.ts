@@ -11,6 +11,16 @@ export function rateLimitMiddleware(): MiddlewareFn<Context> {
         return await next();
       }
 
+      // Skip rate limiting in development or test mode
+      const isTestMode = process.env.NODE_ENV === 'development' || 
+                        process.env.DISABLE_RATE_LIMIT === 'true' ||
+                        process.env.TEST_MODE === 'true';
+      
+      if (isTestMode) {
+        console.log(`🧪 Rate limiting disabled for user ${telegramUser.id} (${telegramUser.username}) - TEST MODE`);
+        return await next();
+      }
+
       const userId = telegramUser.id.toString();
       const windowMs = config.rateLimit.windowMs;
       const maxRequests = config.rateLimit.maxRequests;
