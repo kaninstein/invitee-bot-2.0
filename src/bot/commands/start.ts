@@ -46,7 +46,7 @@ export async function startCommand(ctx: Context) {
     
     if (!canProceed) {
       await ctx.reply(
-        '⏳ **Limite de tentativas atingido**\n\n' +
+        '⏳ *Limite de tentativas atingido*\n\n' +
         'Você pode tentar novamente em 1 hora.\n\n' +
         'Se você já se cadastrou na Blofin, entre em contato com o suporte.'
       );
@@ -56,7 +56,7 @@ export async function startCommand(ctx: Context) {
     // Verificar se já atingiu o limite de tentativas de verificação
     if (user.verification_attempts >= 3) {
       await ctx.reply(
-        '❌ **Limite de tentativas de verificação atingido**\n\n' +
+        '❌ *Limite de tentativas de verificação atingido*\n\n' +
         'Você já tentou verificar seu cadastro 3 vezes sem sucesso.\n\n' +
         '📞 Entre em contato com o suporte para verificação manual.\n' +
         `🎯 Seu token: \`${user.referral_token}\``
@@ -64,28 +64,26 @@ export async function startCommand(ctx: Context) {
       return;
     }
 
-    const welcomeMessage = `
-🚀 **Bem-vindo ao Bot de Calls Cripto!**
+    const welcomeMessage = `🚀 *Bem-vindo ao Bot de Calls Cripto!*
 
 👋 Olá ${firstName}!
 
 Para ter acesso ao nosso grupo exclusivo de calls cripto:
 
-**🏦 PASSO 1: Cadastro na Blofin**
+*🏦 PASSO 1: Cadastro na Blofin*
 • Se cadastre usando OBRIGATORIAMENTE este link:
 ${blofinService.generateReferralLink(telegramUser.id.toString())}
 
-**📺 PASSO 2: Tutorial em Vídeo**
+*📺 PASSO 2: Tutorial em Vídeo*
 • Assista como encontrar seu UID:
 🎥 https://www.loom.com/share/seu-tutorial-uid
 
-**🔍 PASSO 3: Envie seu UID**
+*🔍 PASSO 3: Envie seu UID*
 • Após se cadastrar, me envie seu UID da Blofin
 • É um número como: 23062566953
 • Encontre em: Perfil → Configurações → UID
 
-📝 **Agora me envie apenas seu UID da Blofin:**
-    `.trim();
+📝 *Agora me envie apenas seu UID da Blofin:*`;
 
     await ctx.reply(welcomeMessage, { parse_mode: 'Markdown' });
 
@@ -128,15 +126,15 @@ export async function handleStartUidInput(ctx: Context) {
     // Validar formato do UID (apenas números, entre 8-15 dígitos)
     if (!/^\d{8,15}$/.test(uidInput)) {
       await ctx.reply(
-        '❌ **UID inválido**\n\n' +
+        '❌ *UID inválido*\n\n' +
         '🔢 O UID deve conter apenas números e ter entre 8-15 dígitos.\n\n' +
-        '💡 **Exemplo:** 23062566953\n\n' +
+        '💡 *Exemplo:* 23062566953\n\n' +
         '📝 Tente novamente enviando apenas o UID:'
       );
       return;
     }
 
-    await ctx.reply('🔍 **Verificando seu UID na Blofin...**\n\nPor favor, aguarde...');
+    await ctx.reply('🔍 *Verificando seu UID na Blofin...*\n\nPor favor, aguarde...');
 
     // Limpar estado de espera
     pendingUidInput.delete(telegramUser.id);
@@ -152,10 +150,10 @@ export async function handleStartUidInput(ctx: Context) {
       await userService.markUserAsVerified(pendingState.userId);
       
       await ctx.reply(
-        '🎉 **Verificação concluída com sucesso!**\n\n' +
+        '🎉 *Verificação concluída com sucesso!*\n\n' +
         '✅ Seu UID foi encontrado nos nossos afiliados!\n' +
         '🚀 Você agora tem acesso ao grupo de calls cripto!\n\n' +
-        `🔗 **Link do grupo:** https://t.me/c/${config.telegram.groupId.replace('-100', '')}/1\n\n` +
+        `🔗 *Link do grupo:* https://t.me/c/${config.telegram.groupId.replace('-100', '')}/1\n\n` +
         '💡 Bem-vindo ao grupo! Aproveite as calls exclusivas.'
       );
 
@@ -167,13 +165,13 @@ export async function handleStartUidInput(ctx: Context) {
       const remainingAttempts = user ? 3 - user.verification_attempts : 0;
       
       await ctx.reply(
-        '❌ **UID não encontrado**\n\n' +
+        '❌ *UID não encontrado*\n\n' +
         '🔍 Não conseguimos encontrar este UID nos nossos afiliados.\n\n' +
-        '**Possíveis causas:**\n' +
+        '*Possíveis causas:*\n' +
         '• Você não se cadastrou usando nosso link de afiliado\n' +
         '• O UID está incorreto\n' +
         '• O cadastro é muito recente (aguarde alguns minutos)\n\n' +
-        `🔗 **Certifique-se de usar este link:**\n${blofinService.generateReferralLink(telegramUser.id.toString())}\n\n` +
+        `🔗 *Certifique-se de usar este link:*\n${blofinService.generateReferralLink(telegramUser.id.toString())}\n\n` +
         `⚠️ Tentativas restantes: ${remainingAttempts}\n\n` +
         '💡 Use /start novamente para tentar com outro UID.'
       );
@@ -182,7 +180,7 @@ export async function handleStartUidInput(ctx: Context) {
   } catch (error) {
     console.error('Error in handleStartUidInput:', error);
     await ctx.reply(
-      '❌ **Erro durante a verificação**\n\n' +
+      '❌ *Erro durante a verificação*\n\n' +
       'Ocorreu um erro ao verificar seu UID. Tente novamente em alguns instantes.\n\n' +
       'Se o problema persistir, entre em contato com o suporte.'
     );
