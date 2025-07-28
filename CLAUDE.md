@@ -54,6 +54,13 @@ PostgreSQL with Redis caching. User records track Telegram IDs, Blofin UIDs, ver
 ### Environment Configuration
 All configuration via environment variables or .env file. Critical variables include Telegram tokens, Blofin API credentials, database URLs, and Redis connection strings.
 
+#### Test Mode Variables
+- `NODE_ENV=development` - Automatically disables rate limiting
+- `TEST_MODE=true` - Explicitly disable rate limiting for testing
+- `DISABLE_RATE_LIMIT=true` - Alternative flag to disable rate limiting
+
+Any of these variables will bypass all rate limiting restrictions, allowing unlimited testing of bot commands.
+
 ## Logging and Debugging
 
 ### Log System
