@@ -98,7 +98,7 @@ export class MigrationRunner {
     // Tentar carregar migrations de arquivos primeiro
     if (fs.existsSync(this.migrationsPath)) {
       const files = fs.readdirSync(this.migrationsPath)
-        .filter(file => file.endsWith('.ts') || file.endsWith('.js'))
+        .filter(file => (file.endsWith('.ts') || file.endsWith('.js')) && !file.endsWith('.d.ts'))
         .sort();
 
       logger.info('MIGRATIONS', `Encontrados ${files.length} arquivos de migration: ${files.join(', ')}`);
