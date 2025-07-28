@@ -32,7 +32,14 @@ class BlofinService {
       const timestamp = Date.now().toString();
       const nonce = uuidv4(); // Usar UUID como nonce
       const method = config.method?.toUpperCase() || 'GET';
-      const requestPath = config.url || '';
+      
+      // Build complete request path including query parameters
+      let requestPath = config.url || '';
+      if (config.params && Object.keys(config.params).length > 0) {
+        const queryString = new URLSearchParams(config.params).toString();
+        requestPath += '?' + queryString;
+      }
+      
       const body = config.data ? JSON.stringify(config.data) : '';
       
       logger.blofinRequest(requestPath, requestId, {
@@ -54,8 +61,9 @@ class BlofinService {
         hasPassphrase: !!this.passphrase
       });
       
-      // Generate HMAC-SHA256 signature and convert directly to base64
-      const signature = CryptoJS.HmacSHA256(prehash, this.secretKey).toString(CryptoJS.enc.Base64);
+      // Generate HMAC-SHA256 signature and convert to base64 (matching Postman exactly)
+      const hexSignature = CryptoJS.HmacSHA256(prehash, this.secretKey).toString();
+      const signature = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(hexSignature));
 
       // Headers conforme documentação da Blofin
       config.headers = {
@@ -481,13 +489,23 @@ class BlofinService {
     try {
       console.log(`🔍 Checking UID ${uid} in affiliate invitees...`);
       
-      // Primeira tentativa: buscar por UID específico
+      // Debug: Log API response details
       const response = await this.getDirectInvitees({
         uid: uid,
         limit: 1,
       });
 
-      if (response.code === 200 && response.data && Array.isArray(response.data) && response.data.length > 0) {
+      console.log(`📊 API Response Debug:`, {
+        code: response.code,
+        msg: response.msg,
+        dataType: typeof response.data,
+        dataLength: Array.isArray(response.data) ? response.data.length : 'not array',
+        hasData: !!response.data
+      });
+
+      // Check for the correct success codes based on the documentation
+      if ((response.code === 200 || response.code === 0) 
+          && response.data && Array.isArray(response.data) && response.data.length > 0) {
         const user = response.data[0];
         console.log(`✅ UID ${uid} found in affiliate invitees:`, {
           uid: user.uid,
@@ -498,25 +516,47 @@ class BlofinService {
         return true;
       }
 
-      // Segunda tentativa: buscar em lista geral (últimos 500 registros)
+      // Segunda tentativa: buscar em lista geral usando diferentes limits
       console.log(`🔄 UID ${uid} not found in specific search, checking general list...`);
-      const generalResponse = await this.getDirectInvitees({
-        limit: 500,
-      });
-
-      if (generalResponse.code === 200 && generalResponse.data && Array.isArray(generalResponse.data)) {
-        const userFound = generalResponse.data.find((invitee: any) => 
-          invitee.uid === uid
-        );
-
-        if (userFound) {
-          console.log(`✅ UID ${uid} found in general affiliate list:`, {
-            uid: userFound.uid,
-            registerTime: new Date(parseInt(userFound.registerTime)).toLocaleString('pt-BR'),
-            kycLevel: userFound.kycLevel,
-            totalTradingVolume: userFound.totalTradingVolume
+      const limits = [200, 100, 50]; // Try different limits in case of API restrictions
+      
+      for (const limit of limits) {
+        try {
+          const generalResponse = await this.getDirectInvitees({ limit });
+          
+          console.log(`📊 General API Response (limit ${limit}):`, {
+            code: generalResponse.code,
+            msg: generalResponse.msg,
+            dataLength: Array.isArray(generalResponse.data) ? generalResponse.data.length : 'not array'
           });
-          return true;
+
+          if ((generalResponse.code === 200 || generalResponse.code === 0) 
+              && generalResponse.data && Array.isArray(generalResponse.data)) {
+            
+            console.log(`📋 Checking ${generalResponse.data.length} invitees for UID ${uid}`);
+            
+            const userFound = generalResponse.data.find((invitee: any) => 
+              String(invitee.uid) === String(uid) // Ensure string comparison
+            );
+
+            if (userFound) {
+              console.log(`✅ UID ${uid} found in general affiliate list (limit ${limit}):`, {
+                uid: userFound.uid,
+                registerTime: new Date(parseInt(userFound.registerTime)).toLocaleString('pt-BR'),
+                kycLevel: userFound.kycLevel,
+                totalTradingVolume: userFound.totalTradingVolume
+              });
+              return true;
+            }
+            
+            // If we got results, no need to try other limits
+            if (generalResponse.data.length > 0) {
+              break;
+            }
+          }
+        } catch (limitError) {
+          console.error(`Error with limit ${limit}:`, limitError);
+          continue;
         }
       }
 
@@ -524,6 +564,14 @@ class BlofinService {
       return false;
     } catch (error) {
       console.error('Error verifying user by UID:', error);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as any;
+        console.error('API Error Response:', {
+          status: axiosError.response?.status,
+          data: axiosError.response?.data,
+          headers: axiosError.response?.headers
+        });
+      }
       return false;
     }
   }

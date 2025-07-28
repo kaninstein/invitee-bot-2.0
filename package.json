@@ -14,7 +14,9 @@
     "migrate:up": "ts-node src/cli/migrate.ts up",
     "migrate:down": "ts-node src/cli/migrate.ts down",
     "migrate:status": "ts-node src/cli/migrate.ts status",
-    "migrate:create": "ts-node src/cli/migrate.ts create"
+    "migrate:create": "ts-node src/cli/migrate.ts create",
+    "test-env": "node test-env.js",
+    "debug-env": "node debug-env.js"
   },
   "dependencies": {
     "telegraf": "^4.15.7",

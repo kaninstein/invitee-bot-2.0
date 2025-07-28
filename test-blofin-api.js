@@ -5,183 +5,128 @@
  */
 
 const axios = require('axios');
-const crypto = require('crypto');
+const CryptoJS = require('crypto-js');
 const { v4: uuidv4 } = require('uuid');
 
-// Configurações da API Blofin
-const BLOFIN_CONFIG = {
-  apiKey: 'ea75ea000d4a4f049a0ae9f197ae56c3',
-  secretKey: '42b1ad7e2b7a4a239b0d45425b1da2f0',
-  passphrase: 'blofin_api_2024',
-  baseUrl: 'https://openapi.blofin.com',
-  referralCode: 'GoEEO9'
-};
+// Use your actual credentials
+const API_KEY = '47d6533ad3054856916bf39117c1582b';
+const SECRET_KEY = '489bdb99ba54465e88fdc251dc4c3a75';
+const PASSPHRASE = 'XandyMoney1063';
+const BASE_URL = 'https://openapi.blofin.com';
 
-/**
- * Gerar assinatura para API Blofin
- */
-function generateSignature(method, path, body = '') {
+async function testBlofinAPI() {
+  try {
+    console.log('🧪 Testing Blofin API Authentication...\n');
+    
+    // Test 1: Basic affiliate info
+    console.log('📊 Test 1: Getting affiliate basic info...');
+    const basicInfo = await makeAuthenticatedRequest('GET', '/api/v1/affiliate/basic');
+    console.log('✅ Basic Info Response:', {
+      code: basicInfo.code,
+      msg: basicInfo.msg,
+      hasData: !!basicInfo.data
+    });
+    
+    // Test 2: Direct invitees without UID
+    console.log('\n📊 Test 2: Getting direct invitees (general list)...');
+    const invitees = await makeAuthenticatedRequest('GET', '/api/v1/affiliate/invitees', { limit: 10 });
+    console.log('✅ Invitees Response:', {
+      code: invitees.code,
+      msg: invitees.msg,
+      dataType: typeof invitees.data,
+      dataLength: Array.isArray(invitees.data) ? invitees.data.length : 'not array'
+    });
+    
+    if (Array.isArray(invitees.data) && invitees.data.length > 0) {
+      console.log('📋 Sample invitee:', invitees.data[0]);
+    }
+    
+    // Test 3: Search for specific UID
+    const testUid = '23176549948';
+    console.log(`\n📊 Test 3: Searching for UID ${testUid}...`);
+    const specificUser = await makeAuthenticatedRequest('GET', '/api/v1/affiliate/invitees', { 
+      uid: testUid,
+      limit: 1 
+    });
+    console.log('✅ Specific UID Response:', {
+      code: specificUser.code,
+      msg: specificUser.msg,
+      dataType: typeof specificUser.data,
+      dataLength: Array.isArray(specificUser.data) ? specificUser.data.length : 'not array'
+    });
+    
+    // Test 4: Check if UID exists in general list
+    if (Array.isArray(invitees.data)) {
+      const found = invitees.data.find(user => String(user.uid) === String(testUid));
+      console.log(`🔍 UID ${testUid} found in general list:`, !!found);
+      if (found) {
+        console.log('👤 Found user details:', found);
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ API Test Error:', error.message);
+    if (error.response) {
+      console.error('📄 Response data:', error.response.data);
+      console.error('📊 Response status:', error.response.status);
+    }
+  }
+}
+
+async function makeAuthenticatedRequest(method, path, params = {}) {
   const timestamp = Date.now().toString();
   const nonce = uuidv4();
   
-  // Formato: requestPath + method + timestamp + nonce + body
-  const prehash = path + method + timestamp + nonce + body;
+  // Build URL with query parameters for GET requests
+  let fullPath = path;
+  if (method === 'GET' && Object.keys(params).length > 0) {
+    const queryString = new URLSearchParams(params).toString();
+    fullPath += '?' + queryString;
+  }
   
-  // Gerar HMAC-SHA256
-  const hexSignature = crypto
-    .createHmac('sha256', BLOFIN_CONFIG.secretKey)
-    .update(prehash)
-    .digest('hex');
+  const body = method === 'GET' ? '' : JSON.stringify(params);
   
-  // Converter para Base64
-  const signature = Buffer.from(hexSignature, 'utf8').toString('base64');
+  // Create signature string: path + method + timestamp + nonce + body
+  const prehash = fullPath + method + timestamp + nonce + body;
   
-  return {
-    signature,
+  // Generate HMAC-SHA256 signature and convert to base64 (matching Postman exactly)
+  const hexSignature = CryptoJS.HmacSHA256(prehash, SECRET_KEY).toString();
+  const signature = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(hexSignature));
+  
+  console.log(`🔐 Auth Debug:`, {
+    method,
+    fullPath,
     timestamp,
-    nonce
-  };
-}
-
-/**
- * Fazer requisição para API Blofin
- */
-async function blofinRequest(method, path, data = null) {
-  const body = data ? JSON.stringify(data) : '';
-  const { signature, timestamp, nonce } = generateSignature(method, path, body);
+    nonce: nonce.substring(0, 8) + '...',
+    prehashLength: prehash.length,
+    signatureLength: signature.length
+  });
   
   const headers = {
-    'Content-Type': 'application/json',
-    'ACCESS-KEY': BLOFIN_CONFIG.apiKey,
+    'ACCESS-KEY': API_KEY,
     'ACCESS-SIGN': signature,
     'ACCESS-TIMESTAMP': timestamp,
     'ACCESS-NONCE': nonce,
-    'ACCESS-PASSPHRASE': BLOFIN_CONFIG.passphrase,
+    'ACCESS-PASSPHRASE': PASSPHRASE,
+    'Content-Type': 'application/json'
   };
-
-  try {
-    const response = await axios({
-      method,
-      url: BLOFIN_CONFIG.baseUrl + path,
-      headers,
-      data: data ? data : undefined,
-      timeout: 15000
-    });
-
-    return response.data;
-  } catch (error) {
-    console.error(`❌ Erro na requisição ${method} ${path}:`, {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message
-    });
-    throw error;
-  }
-}
-
-/**
- * Testar endpoints da API
- */
-async function testBlofinAPI() {
-  console.log('🔍 Testando API Blofin...\n');
-
-  try {
-    // 1. Testar informações básicas do afiliado
-    console.log('1️⃣ Testando informações básicas do afiliado...');
-    const basicInfo = await blofinRequest('GET', '/api/v1/affiliate/basic');
-    console.log('✅ Informações básicas:', {
-      referralCode: basicInfo.data?.referralCode,
-      referralLink: basicInfo.data?.referralLink,
-      directInvitees: basicInfo.data?.directInvitees,
-      totalCommission: basicInfo.data?.totalCommission
-    });
-
-    // 2. Testar informações do código de referência
-    console.log('\n2️⃣ Testando informações do código de referência...');
-    const referralInfo = await blofinRequest('GET', '/api/v1/affiliate/referral-code');
-    console.log('✅ Código de referência:', {
-      codes: referralInfo.data?.length || 0,
-      defaultCode: referralInfo.data?.[0]?.referralCode,
-      defaultLink: referralInfo.data?.[0]?.referralLink
-    });
-
-    // 3. Testar lista de convidados diretos
-    console.log('\n3️⃣ Testando lista de convidados diretos...');
-    const invitees = await blofinRequest('GET', '/api/v1/affiliate/invitees?limit=10');
-    console.log('✅ Convidados diretos:', {
-      total: invitees.data?.length || 0,
-      primeiros3: invitees.data?.slice(0, 3).map(inv => ({
-        uid: inv.uid,
-        registerTime: new Date(parseInt(inv.registerTime)).toLocaleString('pt-BR'),
-        totalTradingVolume: inv.totalTradingVolume,
-        kycLevel: inv.kycLevel
-      })) || []
-    });
-
-    // 4. Gerar link de referência
-    console.log('\n4️⃣ Gerando links de referência...');
-    const baseLink = `https://blofin.com/register?referral_code=${BLOFIN_CONFIG.referralCode}`;
-    const telegramLink = `${baseLink}&source=telegram_test`;
-    console.log('✅ Links gerados:');
-    console.log('   Base:', baseLink);
-    console.log('   Telegram:', telegramLink);
-
-    console.log('\n🎉 Todos os testes da API Blofin passaram!');
-    return true;
-
-  } catch (error) {
-    console.error('\n❌ Falha nos testes da API Blofin:', error.message);
-    return false;
-  }
-}
-
-/**
- * Descobrir ID do usuário do Telegram
- */
-function discoverTelegramId() {
-  console.log('\n🔍 Para descobrir seu ID do Telegram:');
-  console.log('1. Envie uma mensagem para @userinfobot no Telegram');
-  console.log('2. Copie seu User ID');
-  console.log('3. Adicione no arquivo src/bot/commands/admin.ts na linha:');
-  console.log('   const ADMIN_IDS = ["SEU_ID_AQUI"];');
-  console.log('\n💡 Exemplo: se seu ID for 123456789:');
-  console.log('   const ADMIN_IDS = ["123456789"];');
-}
-
-/**
- * Função principal
- */
-async function main() {
-  console.log('🚀 Iniciando testes do Bot Telegram - Blofin Integration\n');
-
-  // Testar API Blofin
-  const blofinOk = await testBlofinAPI();
   
-  if (blofinOk) {
-    console.log('\n✅ Configuração da API Blofin está funcionando!');
-  } else {
-    console.log('\n❌ Problemas com a configuração da API Blofin');
-    console.log('   Verifique as credenciais no arquivo .env');
-    process.exit(1);
+  const config = {
+    method,
+    url: BASE_URL + path,
+    headers
+  };
+  
+  if (method === 'GET' && Object.keys(params).length > 0) {
+    config.params = params;
+  } else if (method !== 'GET') {
+    config.data = params;
   }
-
-  // Instruções para descobrir ID do Telegram
-  discoverTelegramId();
-
-  console.log('\n📋 Próximos passos:');
-  console.log('1. ✅ API Blofin configurada');
-  console.log('2. ⏳ Descobrir seu ID do Telegram (@userinfobot)');
-  console.log('3. ⏳ Adicionar ID ao arquivo admin.ts');
-  console.log('4. ⏳ Fazer deploy no Easypanel');
-  console.log('5. ⏳ Testar bot em produção');
-
-  console.log('\n🎯 Bot está pronto para deploy!');
+  
+  const response = await axios(config);
+  return response.data;
 }
 
-// Executar script
-if (require.main === module) {
-  main().catch(console.error);
-}
+// Run the test
+testBlofinAPI();
 
-module.exports = { blofinRequest, generateSignature };

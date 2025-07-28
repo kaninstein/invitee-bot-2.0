@@ -55,22 +55,27 @@ export function rateLimitMiddleware(): MiddlewareFn<Context> {
         const sensitiveCommands = ['/register', '/start'];
         
         if (sensitiveCommands.includes(command)) {
-          const commandKey = `rate_limit:${command.replace('/', '')}:${userId}`;
-          const commandLimit = command === '/register' ? 5 : 10; // /register: 5/hora, /start: 10/hora
-          
-          const canExecuteCommand = await redis.setRateLimit(
-            commandKey,
-            commandLimit,
-            3600 // 1 hora
-          );
-
-          if (!canExecuteCommand) {
-            await ctx.reply(
-              `⏳ **Limite do comando ${command} atingido**\n\n` +
-              `Você pode usar este comando novamente em 1 hora.\n\n` +
-              `💡 Se você está tendo problemas, use /help para obter ajuda.`
+          // Skip rate limiting for sensitive commands in test mode too
+          if (!isTestMode) {
+            const commandKey = `rate_limit:${command.replace('/', '')}:${userId}`;
+            const commandLimit = command === '/register' ? 5 : 10; // /register: 5/hora, /start: 10/hora
+            
+            const canExecuteCommand = await redis.setRateLimit(
+              commandKey,
+              commandLimit,
+              3600 // 1 hora
             );
-            return;
+
+            if (!canExecuteCommand) {
+              await ctx.reply(
+                `⏳ **Limite do comando ${command} atingido**\n\n` +
+                `Você pode usar este comando novamente em 1 hora.\n\n` +
+                `💡 Se você está tendo problemas, use /help para obter ajuda.`
+              );
+              return;
+            }
+          } else {
+            console.log(`🧪 Rate limiting disabled for ${command} command - TEST MODE`);
           }
         }
       }
