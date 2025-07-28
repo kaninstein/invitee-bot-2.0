@@ -6,7 +6,16 @@ const migration: Migration = {
   name: 'add_unique_blofin_uid',
   
   async up(): Promise<void> {
-    // Primeiro, verificar se há UIDs duplicados existentes
+    // Primeiro, garantir que o campo blofin_uid existe
+    const addBlofinUidColumnQuery = `
+      ALTER TABLE users 
+      ADD COLUMN IF NOT EXISTS blofin_uid VARCHAR(100);
+    `;
+    
+    await database.query(addBlofinUidColumnQuery);
+    console.log('✅ Campo blofin_uid garantido na tabela users');
+
+    // Segundo, verificar se há UIDs duplicados existentes
     const checkDuplicatesQuery = `
       SELECT blofin_uid, COUNT(*) as count 
       FROM users 
