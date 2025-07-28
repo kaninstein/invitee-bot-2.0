@@ -1,14 +1,16 @@
-import { Telegraf } from 'telegraf';
+import { Telegraf, Telegram } from 'telegraf';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { userService } from './userService';
 
 export class GroupSecurityService {
-  private bot: Telegraf;
+  private telegram: Telegram;
   private groupId: string;
 
-  constructor(bot: Telegraf) {
-    this.bot = bot;
+  constructor(bot: Telegraf | Telegram) {
+    // Permitir receber tanto a instância completa do Telegraf quanto o objeto
+    // Telegram diretamente. Isso evita erros ao passar apenas ctx.telegram.
+    this.telegram = 'telegram' in bot ? bot.telegram : bot;
     this.groupId = config.telegram.groupId;
   }
 
@@ -45,8 +47,8 @@ export class GroupSecurityService {
    */
   private async checkBotAdminStatus(): Promise<void> {
     try {
-      const botInfo = await this.bot.telegram.getMe();
-      const chatMember = await this.bot.telegram.getChatMember(this.groupId, botInfo.id);
+      const botInfo = await this.telegram.getMe();
+      const chatMember = await this.telegram.getChatMember(this.groupId, botInfo.id);
       
       if (chatMember.status !== 'administrator' && chatMember.status !== 'creator') {
         throw new Error('Bot não é administrador do grupo. Adicione o bot como administrador primeiro.');
@@ -86,7 +88,7 @@ export class GroupSecurityService {
       
       // Revogar link de convite primário se existir
       try {
-        await this.bot.telegram.revokeChatInviteLink(this.groupId, '');
+        await this.telegram.revokeChatInviteLink(this.groupId, '');
         logger.info('GROUP_SECURITY', 'Link de convite primário revogado');
       } catch (error: any) {
         // Se não há link para revogar, está ok
@@ -99,9 +101,9 @@ export class GroupSecurityService {
       
       // Exportar links de convite existentes e revogá-los
       try {
-        const exportedLinks = await this.bot.telegram.exportChatInviteLink(this.groupId);
+        const exportedLinks = await this.telegram.exportChatInviteLink(this.groupId);
         if (exportedLinks) {
-          await this.bot.telegram.revokeChatInviteLink(this.groupId, exportedLinks);
+          await this.telegram.revokeChatInviteLink(this.groupId, exportedLinks);
           logger.info('GROUP_SECURITY', 'Links exportados revogados');
         }
       } catch (error) {
@@ -141,17 +143,17 @@ export class GroupSecurityService {
         can_manage_topics: false,
       };
       
-      await this.bot.telegram.setChatPermissions(this.groupId, restrictedPermissions);
+      await this.telegram.setChatPermissions(this.groupId, restrictedPermissions);
       
       // Configurar título e descrição do grupo para deixar claro que é privado
       try {
-        const chatInfo = await this.bot.telegram.getChat(this.groupId);
+        const chatInfo = await this.telegram.getChat(this.groupId);
         if ('description' in chatInfo) {
           const currentDescription = chatInfo.description || '';
           const securityNotice = '\n\n🔒 GRUPO PRIVADO - Acesso apenas por verificação do bot';
           
           if (!currentDescription.includes('GRUPO PRIVADO')) {
-            await this.bot.telegram.setChatDescription(
+            await this.telegram.setChatDescription(
               this.groupId, 
               currentDescription + securityNotice
             );
@@ -176,7 +178,7 @@ export class GroupSecurityService {
     try {
       logger.info('GROUP_SECURITY', 'Verificando configurações de segurança...');
       
-      const chatInfo = await this.bot.telegram.getChat(this.groupId);
+      const chatInfo = await this.telegram.getChat(this.groupId);
       
       if ('permissions' in chatInfo && chatInfo.permissions) {
         const perms = chatInfo.permissions;
@@ -201,7 +203,7 @@ export class GroupSecurityService {
       
       // Verificar se há link de convite ativo (não deveria ter)
       try {
-        const inviteLink = await this.bot.telegram.exportChatInviteLink(this.groupId);
+        const inviteLink = await this.telegram.exportChatInviteLink(this.groupId);
         if (inviteLink) {
           logger.warn('GROUP_SECURITY', '⚠️ Grupo ainda tem link de convite ativo');
         }
@@ -225,7 +227,7 @@ export class GroupSecurityService {
       // Criar link de convite único para este usuário (expire em 1 hora)
       const expireDate = Math.floor(Date.now() / 1000) + 3600; // 1 hora
       
-      const inviteLink = await this.bot.telegram.createChatInviteLink(this.groupId, {
+      const inviteLink = await this.telegram.createChatInviteLink(this.groupId, {
         member_limit: 1, // Apenas 1 pessoa pode usar
         expire_date: expireDate,
         name: `Verified_User_${userId}_${Date.now()}`,
@@ -247,10 +249,10 @@ export class GroupSecurityService {
     try {
       logger.info('GROUP_SECURITY', `Removendo usuário não verificado ${userId}: ${reason}`);
       
-      await this.bot.telegram.banChatMember(this.groupId, userId);
+      await this.telegram.banChatMember(this.groupId, userId);
       
       // Desbanir imediatamente para permitir re-entrada após verificação
-      await this.bot.telegram.unbanChatMember(this.groupId, userId);
+      await this.telegram.unbanChatMember(this.groupId, userId);
       
       logger.info('GROUP_SECURITY', `✅ Usuário ${userId} removido do grupo`);
       return true;
@@ -268,7 +270,7 @@ export class GroupSecurityService {
     try {
       // Se foi adicionado por um admin, permitir
       if (addedBy) {
-        const adderMember = await this.bot.telegram.getChatMember(this.groupId, addedBy);
+        const adderMember = await this.telegram.getChatMember(this.groupId, addedBy);
         if (adderMember.status === 'administrator' || adderMember.status === 'creator') {
           logger.info('GROUP_SECURITY', `Usuário ${userId} adicionado por admin ${addedBy} - permitido`);
           return;
@@ -285,7 +287,7 @@ export class GroupSecurityService {
         
         // Enviar mensagem explicativa (se possível)
         try {
-          await this.bot.telegram.sendMessage(
+          await this.telegram.sendMessage(
             userId,
             '❌ <b>Acesso negado ao grupo</b>\n\n' +
             'Você foi removido do grupo porque não passou pelo processo de verificação.\n\n' +

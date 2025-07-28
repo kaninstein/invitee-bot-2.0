@@ -178,7 +178,7 @@ export async function handleStartUidInput(ctx: Context) {
       
       // Inicializar serviço de segurança se necessário
       if (!groupSecurity && ctx.telegram) {
-        groupSecurity = new GroupSecurityService(ctx.telegram as any);
+        groupSecurity = new GroupSecurityService(ctx.telegram);
       }
       
       // Criar link de convite único para usuário verificado
