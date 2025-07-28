@@ -14,7 +14,7 @@ const BLOFIN_CONFIG = {
   secretKey: '42b1ad7e2b7a4a239b0d45425b1da2f0',
   passphrase: 'blofin_api_2024',
   baseUrl: 'https://openapi.blofin.com',
-  referralCode: 'blofin'
+  referralCode: 'GoEEO9'
 };
 
 /**
