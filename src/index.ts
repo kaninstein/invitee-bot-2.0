@@ -11,6 +11,17 @@ import healthRoutes from './routes/health';
 import fs from 'fs';
 import path from 'path';
 
+// Extend process type for lock management
+declare global {
+  namespace NodeJS {
+    interface Process {
+      lockRenewalInterval?: NodeJS.Timeout;
+      lockKey?: string;
+      lockValue?: string;
+    }
+  }
+}
+
 const LOCK_FILE = path.join('/tmp', 'telegram-bot.lock');
 
 function createLock(): boolean {
@@ -67,52 +78,89 @@ function removeLock(): void {
   }
 }
 
-// Function to cleanup any existing bot processes
-function cleanupExistingBots(): void {
+// Redis-based distributed locking for containers
+async function createDistributedLock(): Promise<boolean> {
   try {
-    console.log('🧹 Checking for existing bot processes...');
-    const { execSync } = require('child_process');
+    const { redis } = await import('./config/redis');
+    console.log('🔒 Attempting to acquire distributed lock...');
     
-    // Find any existing node processes running the bot
-    try {
-      const processes = execSync('pgrep -f "telegram.*bot|bot.*telegram|ts-node.*index|node.*index"', { encoding: 'utf8' }).trim();
-      if (processes) {
-        const pids = processes.split('\n').filter((pid: string) => pid !== process.pid.toString());
-        if (pids.length > 0) {
-          console.log(`🔪 Found existing bot processes: ${pids.join(', ')}`);
-          for (const pid of pids) {
-            try {
-              process.kill(parseInt(pid), 'SIGTERM');
-              console.log(`🔪 Terminated process ${pid}`);
-            } catch (error) {
-              console.log(`⚠️ Could not terminate process ${pid}:`, error);
-            }
+    const lockKey = 'telegram-bot:polling-lock';
+    const lockValue = `${process.pid}-${Date.now()}`;
+    const lockTTL = 60; // 60 seconds TTL
+    
+    // Try to set the lock with NX (only if not exists) and EX (expiry)
+    const result = await redis.setNX(lockKey, lockValue, lockTTL);
+    
+    if (result === 'OK') {
+      console.log(`🔒 Distributed lock acquired by PID ${process.pid}`);
+      
+      // Set up lock renewal every 30 seconds
+      const renewInterval = setInterval(async () => {
+        try {
+          // Check if we still own the lock
+          const currentValue = await redis.get(lockKey);
+          if (currentValue === lockValue) {
+            // Renew the lock
+            await redis.expire(lockKey, lockTTL);
+            console.log('🔄 Lock renewed');
+          } else {
+            console.log('⚠️ Lock lost, clearing renewal interval');
+            clearInterval(renewInterval);
           }
-          // Wait a bit for processes to die
-          setTimeout(() => {}, 2000);
+        } catch (error) {
+          console.error('❌ Error renewing lock:', error);
+          clearInterval(renewInterval);
         }
-      }
-    } catch (error) {
-      // No processes found, which is fine
-      console.log('✅ No existing bot processes found');
+      }, 30000);
+      
+      // Store interval for cleanup
+      process.lockRenewalInterval = renewInterval;
+      process.lockKey = lockKey;
+      process.lockValue = lockValue;
+      
+      return true;
+    } else {
+      // Check who owns the lock
+      const currentLockValue = await redis.get(lockKey);
+      console.log(`⚠️ Lock already held by: ${currentLockValue}`);
+      return false;
     }
   } catch (error) {
-    console.log('⚠️ Error during cleanup:', error);
+    console.error('❌ Error creating distributed lock:', error);
+    return false;
   }
 }
 
-// Cleanup existing bots first
-cleanupExistingBots();
-
-// Criar lock na inicialização
-if (!createLock()) {
-  console.log('❌ Failed to create lock, exiting...');
-  process.exit(1);
+async function releaseDistributedLock(): Promise<void> {
+  try {
+    if (process.lockRenewalInterval) {
+      clearInterval(process.lockRenewalInterval);
+    }
+    
+    if (process.lockKey && process.lockValue) {
+      const { redis } = await import('./config/redis');
+      
+      // Only release if we still own the lock
+      const currentValue = await redis.get(process.lockKey);
+      if (currentValue === process.lockValue) {
+        await redis.del(process.lockKey);
+        console.log('🔓 Distributed lock released');
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error releasing distributed lock:', error);
+  }
 }
 
 async function startServer() {
   try {
     logger.info('STARTUP', '🚀 Starting Telegram Crypto Bot...');
+    
+    // Create local file lock first
+    if (!createLock()) {
+      console.log('❌ Failed to create local lock, exiting...');
+      process.exit(1);
+    }
     
     // Validate configuration
     validateConfig();
@@ -314,21 +362,33 @@ async function startServer() {
     if (usePolling) {
       logger.info('STARTUP', '🔄 Starting in polling mode (TEMPORARY - bypass network issues)...');
       
-      try {
-        // Clear any existing webhook first to avoid conflicts
-        logger.info('STARTUP', '🧹 Clearing existing webhook for polling mode...');
-        await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-        logger.info('STARTUP', '✅ Webhook cleared successfully');
+      // Try to acquire distributed lock for polling
+      const hasLock = await createDistributedLock();
+      if (!hasLock) {
+        logger.warn('STARTUP', '⚠️ Could not acquire polling lock - another instance is already polling');
+        logger.info('STARTUP', '🔄 Running in webhook mode instead (no polling)');
         
-        // Small delay to ensure webhook is fully cleared
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Start polling
-        await bot.launch();
-        logger.info('STARTUP', '✅ Bot started in polling mode');
-      } catch (error) {
-        logger.error('STARTUP', 'Failed to start bot in polling mode', error as Error);
-        throw error;
+        // Continue running as webhook-only server (no polling)
+        // This allows multiple instances to handle webhooks while only one polls
+      } else {
+        try {
+          // Clear any existing webhook first to avoid conflicts
+          logger.info('STARTUP', '🧹 Clearing existing webhook for polling mode...');
+          await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+          logger.info('STARTUP', '✅ Webhook cleared successfully');
+          
+          // Small delay to ensure webhook is fully cleared
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Start polling
+          await bot.launch();
+          logger.info('STARTUP', '✅ Bot started in polling mode with distributed lock');
+        } catch (error) {
+          logger.error('STARTUP', 'Failed to start bot in polling mode', error as Error);
+          // Release the lock if we failed to start polling
+          await releaseDistributedLock();
+          throw error;
+        }
       }
     } else {
       logger.info('STARTUP', '✅ Webhook configured automatically by startup service');
@@ -339,9 +399,12 @@ async function startServer() {
       logger.info('SHUTDOWN', `📴 Received ${signal}, shutting down gracefully...`);
       
       try {
-        // Remove lock file
+        // Release distributed lock first
+        await releaseDistributedLock();
+        
+        // Remove local lock file
         removeLock();
-        logger.info('SHUTDOWN', '🔓 Lock file removed');
+        logger.info('SHUTDOWN', '🔓 Locks removed');
         
         // Stop bot
         bot.stop(signal);

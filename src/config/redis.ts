@@ -157,6 +157,25 @@ class RedisCache {
     const key = `verification_token:${token}`;
     await this.del(key);
   }
+
+  // Distributed locking methods
+  async setNX(key: string, value: string, expireInSeconds?: number): Promise<string | null> {
+    try {
+      if (expireInSeconds) {
+        return await this.client.set(key, value, {
+          NX: true,
+          EX: expireInSeconds
+        });
+      } else {
+        return await this.client.set(key, value, {
+          NX: true
+        });
+      }
+    } catch (error) {
+      console.error('Redis SETNX error:', error);
+      throw error;
+    }
+  }
 }
 
 export const redis = new RedisCache();
