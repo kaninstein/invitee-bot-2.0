@@ -100,6 +100,11 @@ async function startServer() {
       res.status(200).json({ status: 'pong', timestamp: new Date().toISOString() });
     });
     
+    // Emergency status endpoint - simpler response
+    app.get('/status', (req, res) => {
+      res.status(200).send('RUNNING');
+    });
+    
     // Debug endpoint para webhook
     app.use('/webhook', (req, res, next) => {
       console.log('🔗 WEBHOOK CHAMADO:', {
@@ -251,12 +256,15 @@ async function startServer() {
     setupScheduledTasks();
 
     // Configure webhook or polling based on environment
-    if (config.app.nodeEnv === 'production' && config.telegram.webhookUrl) {
-      logger.info('STARTUP', '✅ Webhook configured automatically by startup service');
-    } else {
-      logger.info('STARTUP', '🔄 Starting in polling mode...');
+    // TEMPORARILY FORCE POLLING MODE to bypass Easypanel routing issues
+    const usePolling = true; // config.app.nodeEnv !== 'production' || !config.telegram.webhookUrl;
+    
+    if (usePolling) {
+      logger.info('STARTUP', '🔄 Starting in polling mode (TEMPORARY - bypass network issues)...');
       await bot.launch();
       logger.info('STARTUP', '✅ Bot started in polling mode');
+    } else {
+      logger.info('STARTUP', '✅ Webhook configured automatically by startup service');
     }
 
     // Graceful shutdown handlers
