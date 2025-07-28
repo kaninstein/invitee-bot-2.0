@@ -166,7 +166,9 @@ class BlofinService {
           
           // Log alguns UIDs para debug
           const sampleUids = generalResponse.data.slice(0, 5).map(u => u.uid);
+          const fullUserData = generalResponse.data.slice(0, 2).map(u => ({uid: u.uid, email: u.email || 'N/A', regTime: u.regTime || 'N/A'}));
           console.log(`📋 BLOFIN SAMPLE UIDS | limit=${limit} | sampleUids=[${sampleUids.join(', ')}] | total=${generalResponse.data.length}`);
+          console.log(`👥 BLOFIN USER DETAILS | limit=${limit} | users=${JSON.stringify(fullUserData)}`);
         }
       }
       
