@@ -22,11 +22,7 @@ class BlofinService {
     this.passphrase = config.blofin.passphrase;
     this.baseUrl = config.blofin.baseUrl;
 
-    logger.debug('🔐 BLOFIN CONFIG loaded', {
-  apiKeyStart: this.apiKey.substring(0, 8),
-  baseUrl: this.baseUrl,
-  passphrasePreview: this.passphrase.substring(0, 3) + '***'
-});
+    logger.debug(`🔐 BLOFIN CONFIG loaded | apiKeyStart=${this.apiKey.substring(0, 8)}, baseUrl=${this.baseUrl}, passphrasePreview=${this.passphrase.substring(0, 3)}***`);
 
     this.client = axios.create({
       baseURL: this.baseUrl,
@@ -54,15 +50,7 @@ class BlofinService {
       const hexSignature = CryptoJS.HmacSHA256(prehash, this.secretKey).toString();
       const signature = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(hexSignature));
 
-      logger.debug('🔐 BLOFIN SIGNATURE GENERATED', {
-  method,
-  requestPath,
-  timestamp,
-  nonce,
-  prehash,
-  signaturePreview: signature.substring(0, 12) + '...',
-  requestId
-});
+      logger.debug(`🔐 BLOFIN SIGNATURE GENERATED | method=${method}, requestPath=${requestPath}, timestamp=${timestamp}, nonce=${nonce}, prehash=${prehash}, signaturePreview=${signature.substring(0, 12)}..., requestId=${requestId}`);
 
       config.headers = {
         ...config.headers,
@@ -80,13 +68,7 @@ class BlofinService {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        logger.error('❌ BLOFIN API ERROR', {
-  error: error.message,
-  url: error.config?.url,
-  method: error.config?.method,
-  headers: error.config?.headers,
-  response: error.response?.data
-});
+        logger.error(`❌ BLOFIN API ERROR | message=${error.message}, url=${error.config?.url}, method=${error.config?.method}`);
         throw error;
       }
     );
@@ -155,14 +137,14 @@ class BlofinService {
   }
 
   async verifyUserByUid(uid: string): Promise<boolean> {
-    logger.debug('🔍 BLOFIN VERIFICATION START INITIATED', { uid });
+    logger.debug(`🔍 BLOFIN VERIFICATION START INITIATED | uid=${uid}`);
     const response = await this.getDirectInvitees({ uid, limit: 1 });
-    logger.debug('📊 BLOFIN VERIFICATION RESPONSE', { code: response.code, hasData: Array.isArray(response.data), length: response.data?.length });
+    logger.debug(`📊 BLOFIN VERIFICATION RESPONSE | code=${response.code}, hasData=${Array.isArray(response.data)}, length=${response.data?.length}`);
     if (isSuccessCode(response.code) && Array.isArray(response.data) && response.data.length > 0) return true;
     const limits = [200, 100, 50];
     for (const limit of limits) {
       const generalResponse = await this.getDirectInvitees({ limit });
-      logger.debug('📊 BLOFIN GENERAL RESPONSE', { limit, dataLength: generalResponse.data?.length });
+      logger.debug(`📊 BLOFIN GENERAL RESPONSE | limit=${limit}, dataLength=${generalResponse.data?.length}`);
       if (Array.isArray(generalResponse.data) && generalResponse.data.some((u) => u.uid === uid)) return true;
     }
     return false;
