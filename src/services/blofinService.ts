@@ -22,11 +22,11 @@ class BlofinService {
     this.passphrase = config.blofin.passphrase;
     this.baseUrl = config.blofin.baseUrl;
 
-    logger.debug('🔐 BLOFIN CONFIG', {
-      apiKeyStart: this.apiKey.substring(0, 8),
-      baseUrl: this.baseUrl,
-      passphrasePreview: this.passphrase.substring(0, 3) + '***',
-    });
+    logger.debug('🔐 BLOFIN CONFIG loaded', {
+  apiKeyStart: this.apiKey.substring(0, 8),
+  baseUrl: this.baseUrl,
+  passphrasePreview: this.passphrase.substring(0, 3) + '***'
+});
 
     this.client = axios.create({
       baseURL: this.baseUrl,
@@ -55,14 +55,14 @@ class BlofinService {
       const signature = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(hexSignature));
 
       logger.debug('🔐 BLOFIN SIGNATURE GENERATED', {
-        method,
-        requestPath,
-        timestamp,
-        nonce,
-        prehash,
-        signaturePreview: signature.substring(0, 12) + '...',
-        requestId,
-      });
+  method,
+  requestPath,
+  timestamp,
+  nonce,
+  prehash,
+  signaturePreview: signature.substring(0, 12) + '...',
+  requestId
+});
 
       config.headers = {
         ...config.headers,
@@ -81,11 +81,12 @@ class BlofinService {
       (response) => response,
       (error) => {
         logger.error('❌ BLOFIN API ERROR', {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers,
-          response: error.response?.data,
-        });
+  error: error.message,
+  url: error.config?.url,
+  method: error.config?.method,
+  headers: error.config?.headers,
+  response: error.response?.data
+});
         throw error;
       }
     );
