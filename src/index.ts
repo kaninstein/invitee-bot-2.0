@@ -261,7 +261,7 @@ async function startServer() {
 
     // Configure webhook or polling based on environment
     // TEMPORARILY FORCE POLLING MODE to bypass Easypanel routing issues
-    const usePolling = true; // config.app.nodeEnv !== 'production' || !config.telegram.webhookUrl;
+    // usePolling already defined above
     
     if (usePolling) {
       logger.info('STARTUP', '🔄 Starting in polling mode (TEMPORARY - bypass network issues)...');
