@@ -232,8 +232,24 @@ export class GroupSecurityService {
         expire_date: expireDate,
         name: `Verified_User_${userId}_${Date.now()}`,
       });
-      
+
       logger.info('GROUP_SECURITY', `✅ Link de convite criado para usuário ${userId}`);
+
+      // Tentar enviar o link diretamente para o usuário
+      try {
+        await this.telegram.sendMessage(
+          userId,
+          '🚀 <b>Bem-vindo ao grupo!</b>\n\n' +
+            'Clique no link abaixo para entrar:\n' +
+            `${inviteLink.invite_link}`,
+          { parse_mode: 'HTML' }
+        );
+      } catch (sendError) {
+        logger.warn('GROUP_SECURITY', `Não foi possível enviar link para ${userId}`, {
+          error: (sendError as Error).message,
+        });
+      }
+
       return true;
       
     } catch (error) {
