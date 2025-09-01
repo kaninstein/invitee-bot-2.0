@@ -365,9 +365,12 @@ async function startServer() {
       console.log(`📡 Webhook URL: ${config.telegram.webhookUrl || 'Not configured'}`);
       console.log(`🏥 Health check: http://localhost:${PORT}/health`);
       console.log(`📊 Metrics: http://localhost:${PORT}/metrics`);
-      console.log(`🔗 External webhook: https://bot-telegram-bot.kmnpkd.easypanel.host/webhook`);
-      console.log(`🧪 Test endpoint: https://bot-telegram-bot.kmnpkd.easypanel.host/test`);
-      console.log(`💓 Alive endpoint: https://bot-telegram-bot.kmnpkd.easypanel.host/alive`);
+      
+      // Use the same domain as webhook URL for all endpoints
+      const baseUrl = config.telegram.webhookUrl ? config.telegram.webhookUrl.replace('/webhook', '') : `https://bot-telegram-bot.kmnpkd.easypanel.host`;
+      console.log(`🔗 External webhook: ${baseUrl}/webhook`);
+      console.log(`🧪 Test endpoint: ${baseUrl}/test`);
+      console.log(`💓 Alive endpoint: ${baseUrl}/alive`);
     });
     
     server.on('error', (error) => {
