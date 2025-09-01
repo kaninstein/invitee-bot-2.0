@@ -385,33 +385,21 @@ async function startServer() {
     if (usePolling) {
       logger.info('STARTUP', '🔄 Starting in polling mode (development environment)...');
       
-      // Try to acquire distributed lock for polling
-      const hasLock = await createDistributedLock();
-      if (!hasLock) {
-        logger.warn('STARTUP', '⚠️ Could not acquire polling lock - another instance is already polling');
-        logger.info('STARTUP', '🔄 Running in webhook mode instead (no polling)');
+      try {
+        // Clear any existing webhook first to avoid conflicts
+        logger.info('STARTUP', '🧹 Clearing existing webhook for polling mode...');
+        await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+        logger.info('STARTUP', '✅ Webhook cleared successfully');
         
-        // Continue running as webhook-only server (no polling)
-        // This allows multiple instances to handle webhooks while only one polls
-      } else {
-        try {
-          // Clear any existing webhook first to avoid conflicts
-          logger.info('STARTUP', '🧹 Clearing existing webhook for polling mode...');
-          await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-          logger.info('STARTUP', '✅ Webhook cleared successfully');
-          
-          // Small delay to ensure webhook is fully cleared
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Start polling
-          await bot.launch();
-          logger.info('STARTUP', '✅ Bot started in polling mode with distributed lock');
-        } catch (error) {
-          logger.error('STARTUP', 'Failed to start bot in polling mode', error as Error);
-          // Release the lock if we failed to start polling
-          await releaseDistributedLock();
-          throw error;
-        }
+        // Small delay to ensure webhook is fully cleared
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Start polling (disable distributed lock temporarily)
+        await bot.launch();
+        logger.info('STARTUP', '✅ Bot started in polling mode');
+      } catch (error) {
+        logger.error('STARTUP', 'Failed to start bot in polling mode', error as Error);
+        throw error;
       }
     } else {
       logger.info('STARTUP', '✅ Webhook configured automatically by startup service');

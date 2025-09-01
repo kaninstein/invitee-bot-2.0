@@ -45,7 +45,11 @@ export class StartupService {
       
       // 5. Verificar conexão Redis
       logger.info('STARTUP', '5️⃣ Validating Redis connection...');
-      await this.validateRedisConnection();
+      try {
+        await this.validateRedisConnection();
+      } catch (error) {
+        logger.warn('STARTUP', '⚠️ Redis connection failed, continuing without Redis:', (error as Error).message);
+      }
       
       // 6. Validar API da Blofin
       logger.info('STARTUP', '6️⃣ Validating Blofin API...');
@@ -112,8 +116,11 @@ export class StartupService {
     logger.info('STARTUP', 'Configurando webhook do Telegram...');
     
     try {
+      logger.info('STARTUP', '🚀 Getting current webhook info...');
       // Verificar webhook atual
       const webhookInfo = await this.bot.telegram.getWebhookInfo();
+      logger.info('STARTUP', `Current webhook: ${webhookInfo.url || 'none'}`);
+      
       const expectedUrl = config.telegram.webhookUrl;
       
       if (!expectedUrl) {
@@ -126,13 +133,14 @@ export class StartupService {
       }
 
       // Configurar novo webhook
-      logger.info('STARTUP', `Configurando webhook para: ${expectedUrl}`);
+      logger.info('STARTUP', `🔧 Configurando webhook para: ${expectedUrl}`);
       
       await this.bot.telegram.setWebhook(expectedUrl, {
         drop_pending_updates: true,
         allowed_updates: ['message', 'callback_query', 'chat_member']
       });
       
+      logger.info('STARTUP', '🔍 Verificando webhook configurado...');
       // Verificar se foi configurado corretamente
       const newWebhookInfo = await this.bot.telegram.getWebhookInfo();
       
@@ -200,7 +208,11 @@ export class StartupService {
     logger.info('STARTUP', 'Verificando conexão com Redis...');
     
     try {
+      // Connect if not already connected
       await redis.connect();
+      
+      // Test ping first
+      await redis.ping();
       
       // Teste simples de write/read
       const testKey = 'startup:test';

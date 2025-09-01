@@ -36,7 +36,7 @@ class RedisCache {
   }
 
   async connect() {
-    if (!this.isConnected) {
+    if (!this.isConnected && !this.client.isOpen) {
       await this.client.connect();
     }
   }
