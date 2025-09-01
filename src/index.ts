@@ -180,7 +180,7 @@ async function startServer() {
     const startupService = new StartupService(bot);
     
     // Check if we'll use polling mode to skip webhook setup
-    const usePolling = true; // TEMPORARILY FORCE POLLING MODE
+    const usePolling = config.app.nodeEnv === 'development'; // Use polling only in development
     const initSuccess = await startupService.initialize(usePolling ? 'polling' : 'webhook');
     
     if (!initSuccess) {
@@ -360,11 +360,8 @@ async function startServer() {
     setupScheduledTasks();
 
     // Configure webhook or polling based on environment
-    // TEMPORARILY FORCE POLLING MODE to bypass Easypanel routing issues
-    // usePolling already defined above
-    
     if (usePolling) {
-      logger.info('STARTUP', '🔄 Starting in polling mode (TEMPORARY - bypass network issues)...');
+      logger.info('STARTUP', '🔄 Starting in polling mode (development environment)...');
       
       // Try to acquire distributed lock for polling
       const hasLock = await createDistributedLock();
