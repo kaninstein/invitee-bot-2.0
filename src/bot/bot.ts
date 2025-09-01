@@ -1,5 +1,6 @@
 import { Telegraf } from 'telegraf';
 import { config } from '../config';
+import { i18nService } from '../services/i18nService';
 
 // Middleware
 import { authMiddleware } from '../middleware/auth';
@@ -84,12 +85,7 @@ export function setupBot(bot: Telegraf) {
 
       // Mensagem padrão para texto não reconhecido apenas em privado
       await ctx.reply(
-        '🤖 **Comando não reconhecido**\n\n' +
-        'Use um dos comandos disponíveis:\n\n' +
-        '/start - Cadastro e verificação\n' +
-        '/status - Ver seu status\n' +
-        '/help - Ajuda e suporte\n\n' +
-        '💡 Digite /start para começar.'
+        i18nService.t('general.unknownCommand')
       );
     }
   });
@@ -101,19 +97,19 @@ export function setupBot(bot: Telegraf) {
       
       if (data === 'refresh_status') {
         await statusCommand(ctx);
-        await ctx.answerCbQuery('Status atualizado!');
+        await ctx.answerCbQuery(i18nService.t('callback.statusUpdated'));
       } else if (data === 'help') {
         await helpCommand(ctx);
         await ctx.answerCbQuery();
       } else if (data === 'register') {
         await startCommand(ctx);
-        await ctx.answerCbQuery('Iniciando verificação...');
+        await ctx.answerCbQuery(i18nService.t('callback.startingVerification'));
       } else {
-        await ctx.answerCbQuery('Ação não reconhecida.');
+        await ctx.answerCbQuery(i18nService.t('callback.actionNotRecognized'));
       }
     } catch (error) {
       console.error('Callback query error:', error);
-      await ctx.answerCbQuery('Erro ao processar ação.');
+      await ctx.answerCbQuery(i18nService.t('callback.processingError'));
     }
   });
 

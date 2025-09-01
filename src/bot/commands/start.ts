@@ -4,11 +4,8 @@ import { blofinService } from '../../services/blofinService';
 import { config } from '../../config';
 import { redis } from '../../config/redis';
 import { GroupSecurityService } from '../../services/groupSecurityService';
+import { i18nService } from '../../services/i18nService';
 
-// Função para escapar caracteres especiais do MarkdownV2
-function escapeMarkdownV2(text: string): string {
-  return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-}
 
 // Estado da sessão para aguardar UID do usuário no /start
 const pendingUidInput = new Map<number, { userId: number; step: 'waiting_uid' }>();
@@ -41,10 +38,10 @@ export async function startCommand(ctx: Context) {
     
     if (user.group_access) {
       await ctx.reply(
-        `🎉 Olá ${firstName}!\n\n` +
-        `✅ Você já tem acesso ao grupo de calls cripto!\n\n` +
-        `🔗 [Clique aqui para entrar no grupo](https://t.me/c/${config.telegram.groupId.replace('-100', '')}/1)\n\n` +
-        `💡 Use /status para verificar seu status atual.`
+        i18nService.t('start.accessMessage', {
+          firstName,
+          groupId: config.telegram.groupId.replace('-100', '')
+        })
       );
       return;
     }
@@ -60,9 +57,7 @@ export async function startCommand(ctx: Context) {
       
       if (!canProceed) {
         await ctx.reply(
-          '⏳ <b>Limite de tentativas atingido</b>\n\n' +
-          'Você pode tentar novamente em 1 hora.\n\n' +
-          'Se você já se cadastrou na Blofin, entre em contato com o suporte.',
+          i18nService.t('start.rateLimitReached'),
           { parse_mode: 'HTML' }
         );
         return;
@@ -74,10 +69,7 @@ export async function startCommand(ctx: Context) {
     // Verificar se já atingiu o limite de tentativas de verificação (skip in test mode)
     if (!isTestMode && user.verification_attempts >= 3) {
       await ctx.reply(
-        '❌ <b>Limite de tentativas de verificação atingido</b>\n\n' +
-        'Você já tentou verificar seu cadastro 3 vezes sem sucesso.\n\n' +
-        '📞 Entre em contato com o suporte para verificação manual.\n' +
-        `🎯 Seu token: <code>${user.referral_token}</code>`,
+        i18nService.t('start.verificationLimitReached', { token: user.referral_token }),
         { parse_mode: 'HTML' }
       );
       return;
@@ -87,28 +79,22 @@ export async function startCommand(ctx: Context) {
 
     const referralLink = blofinService.generateReferralLink(telegramUser.id.toString());
     
-    const welcomeMessage = `🚀 *Bem\\-vindo ao Bot de Calls Cripto\\!*
+    const welcomeMessage = `${i18nService.tMarkdown('start.welcome')}
 
-👋 Olá ${escapeMarkdownV2(firstName)}\\!
+${i18nService.tMarkdown('start.hello', { firstName })}
 
-Para ter acesso ao nosso grupo exclusivo de calls cripto:
+${i18nService.tMarkdown('start.instructions')}
 
-*🏦 PASSO 1: Cadastro na Blofin*
-• Se cadastre usando OBRIGATORIAMENTE este link:
-🔗 [Clique aqui para se cadastrar na Blofin](${referralLink})
-📎 Link direto: ${escapeMarkdownV2(referralLink)}
+*${i18nService.tMarkdown('start.step1.title')}*
+${i18nService.tMarkdown('start.step1.description', { referralLink })}
 
-*📺 PASSO 2: Tutorial em Vídeo*
-• Assista como encontrar seu UID:
-🎥 [Tutorial \\- Como encontrar seu UID](https://www.loom.com/share/seu-tutorial-uid)
-📎 Link direto: https://www\\.loom\\.com/share/seu\\-tutorial\\-uid
+*${i18nService.tMarkdown('start.step2.title')}*
+${i18nService.tMarkdown('start.step2.description', { loomUrl: config.bot.loomTutorialUrl })}
 
-*🔍 PASSO 3: Envie seu UID*
-• Após se cadastrar, me envie seu UID da Blofin
-• É um número como: 23062566953
-• Encontre em: Perfil → Configurações → UID
+*${i18nService.tMarkdown('start.step3.title')}*
+${i18nService.tMarkdown('start.step3.description')}
 
-📝 *Agora me envie apenas seu UID da Blofin:*`;
+${i18nService.tMarkdown('start.sendUid')}`;
 
     await ctx.reply(welcomeMessage, { parse_mode: 'MarkdownV2' });
 
@@ -126,8 +112,7 @@ Para ter acesso ao nosso grupo exclusivo de calls cripto:
   } catch (error) {
     console.error('Error in start command:', error);
     await ctx.reply(
-      '❌ Ocorreu um erro ao processar sua solicitação. Tente novamente em alguns instantes.\n\n' +
-      'Se o problema persistir, entre em contato com o suporte.'
+      i18nService.t('general.error')
     );
   }
 }
@@ -154,17 +139,14 @@ export async function handleStartUidInput(ctx: Context) {
     if (!/^\d{8,15}$/.test(uidInput)) {
       console.log(`❌ INVALID UID FORMAT | uid=${uidInput} | pattern=failed`);
       await ctx.reply(
-        '❌ *UID inválido*\n\n' +
-        '🔢 O UID deve conter apenas números e ter entre 8\\-15 dígitos\\.\n\n' +
-        '💡 *Exemplo:* 23062566953\n\n' +
-        '📝 Tente novamente enviando apenas o UID:',
+        i18nService.tMarkdown('uid.invalid'),
         { parse_mode: 'MarkdownV2' }
       );
       return;
     }
 
     console.log(`✅ UID FORMAT VALID | uid=${uidInput} | proceeding to API verification`);
-    await ctx.reply('🔍 *Verificando seu UID na Blofin\\.\\.\\.*\n\nPor favor, aguarde\\.\\.\\.', { parse_mode: 'MarkdownV2' });
+    await ctx.reply(i18nService.tMarkdown('uid.verifying'), { parse_mode: 'MarkdownV2' });
 
     // Limpar estado de espera
     pendingUidInput.delete(telegramUser.id);
@@ -230,22 +212,19 @@ export async function handleStartUidInput(ctx: Context) {
           console.log(`🔗 CREATING INVITE LINK | user=@${telegramUser.username}`);
           const success = await groupSecurity.addVerifiedUser(telegramUser.id);
           if (success) {
-            inviteMessage = '\n\n🔗 *Um link de convite único foi criado para você\\!*\n' +
-                          '📨 Verifique suas mensagens privadas para o link de acesso\\.';
+            inviteMessage = '\n\n' + i18nService.tMarkdown('group.inviteLinkCreated');
             console.log(`✅ INVITE LINK CREATED | user=@${telegramUser.username}`);
           }
         }
       } catch (error) {
         console.warn(`❌ INVITE LINK CREATION FAILED | user=@${telegramUser.username} | error:`, error);
-        inviteMessage = `\n\n🔗 *Link do grupo:* https://t\\.me/c/${config.telegram.groupId.replace('-100', '')}/1`;
+        inviteMessage = '\n\n' + i18nService.tMarkdown('group.inviteLinkFailed', {
+          groupId: config.telegram.groupId.replace('-100', '')
+        });
       }
       
       await ctx.reply(
-        '🎉 *Verificação concluída com sucesso\\!*\n\n' +
-        '✅ Seu UID foi encontrado nos nossos afiliados\\!\n' +
-        '🚀 Você agora tem acesso ao grupo de calls cripto\\!' +
-        inviteMessage + '\n\n' +
-        '💡 Bem\\-vindo ao grupo\\! Aproveite as calls exclusivas\\.',
+        i18nService.tMarkdown('uid.success', { inviteMessage }),
         { parse_mode: 'MarkdownV2' }
       );
 
@@ -262,15 +241,10 @@ export async function handleStartUidInput(ctx: Context) {
       
       const userReferralLink = blofinService.generateReferralLink(telegramUser.id.toString());
       await ctx.reply(
-        '❌ *UID não encontrado*\n\n' +
-        '🔍 Não conseguimos encontrar este UID nos nossos afiliados\\.\n\n' +
-        '*Possíveis causas:*\n' +
-        '• Você não se cadastrou usando nosso link de afiliado\n' +
-        '• O UID está incorreto\n' +
-        '• O cadastro é muito recente \\(aguarde alguns minutos\\)\n\n' +
-        `🔗 *Certifique\\-se de usar este link:*\n[🔗 Clique aqui para se cadastrar na Blofin](${userReferralLink})\n📎 Link direto: ${escapeMarkdownV2(userReferralLink)}\n\n` +
-        `⚠️ Tentativas restantes: ${remainingAttempts}\n\n` +
-        '💡 Use /start novamente para tentar com outro UID\\.',
+        i18nService.tMarkdown('uid.notFound', {
+          referralLink: userReferralLink,
+          remainingAttempts
+        }),
         { parse_mode: 'MarkdownV2' }
       );
       
@@ -280,9 +254,7 @@ export async function handleStartUidInput(ctx: Context) {
   } catch (error) {
     console.error('Error in handleStartUidInput:', error);
     await ctx.reply(
-      '❌ <b>Erro durante a verificação</b>\n\n' +
-      'Ocorreu um erro ao verificar seu UID. Tente novamente em alguns instantes.\n\n' +
-      'Se o problema persistir, entre em contato com o suporte.',
+      i18nService.t('general.verificationError'),
       { parse_mode: 'HTML' }
     );
   }

@@ -5,6 +5,7 @@ import { config, validateConfig } from './config';
 import { setupScheduledTasks } from './utils/scheduler';
 import { StartupService } from './services/startupService';
 import { logger } from './utils/logger';
+import { i18nService } from './services/i18nService';
 import healthRoutes from './routes/health';
 
 // Prevent multiple instances with file-based lock
@@ -164,6 +165,9 @@ async function startServer() {
     
     // Validate configuration
     validateConfig();
+    
+    // Initialize i18n service
+    await i18nService.init();
     
     // Initialize Express app
     const app = express();

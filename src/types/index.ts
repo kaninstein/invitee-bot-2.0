@@ -72,5 +72,6 @@ export interface Config {
   bot: {
     verificationTimeoutHours: number;
     maxVerificationAttempts: number;
+    loomTutorialUrl: string;
   };
 }

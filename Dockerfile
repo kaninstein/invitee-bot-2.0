@@ -6,7 +6,7 @@ RUN apk add --no-cache python3 make g++
 
 # Criar usuário não-root para segurança
 RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nextjs -u 1001
+RUN adduser -S botuser -u 1001
 
 # Diretório de trabalho
 WORKDIR /app
@@ -27,9 +27,9 @@ RUN npm run build
 # Remover dev dependencies para reduzir tamanho da imagem
 RUN npm prune --production
 
-# Mudar ownership dos arquivos para usuário nodejs
-RUN chown -R nextjs:nodejs /app
-USER nextjs
+# Criar diretório de logs e mudar ownership
+RUN mkdir -p /app/logs && chown -R botuser:nodejs /app
+USER botuser
 
 # Expor porta
 EXPOSE 3000
