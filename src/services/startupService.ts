@@ -48,7 +48,7 @@ export class StartupService {
       try {
         await this.validateRedisConnection();
       } catch (error) {
-        logger.warn('STARTUP', '⚠️ Redis connection failed, continuing without Redis:', { error: (error as Error).message });
+        logger.warn('STARTUP', '⚠️ Redis connection failed, continuing without Redis', { error: (error as Error).message });
       }
       
       // 6. Validar API da Blofin
