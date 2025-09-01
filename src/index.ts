@@ -43,9 +43,14 @@ function createLock(): boolean {
         processRunning = false;
       }
       
+      // In Docker containers, we often get PID 1, so we need additional checks
+      const isContainerEnvironment = process.pid === 1;
+      const isSamePid = lockData.pid === process.pid;
+      
       // Se o lock tem mais de 5 minutos OU o processo não está rodando, consideramos órfão
-      if (lockAge > 5 * 60 * 1000 || !processRunning) {
-        console.log(`🧹 Removing stale lock file (age: ${Math.round(lockAge/1000)}s, process running: ${processRunning})`);
+      // Em ambiente de container, se é o mesmo PID, provavelmente é o mesmo container reiniciando
+      if (lockAge > 5 * 60 * 1000 || !processRunning || (isContainerEnvironment && isSamePid)) {
+        console.log(`🧹 Removing stale lock file (age: ${Math.round(lockAge/1000)}s, process running: ${processRunning}, container env: ${isContainerEnvironment})`);
         fs.unlinkSync(LOCK_FILE);
       } else {
         console.log(`⚠️ Another instance is running (PID: ${lockData.pid}), exiting...`);
@@ -157,10 +162,13 @@ async function startServer() {
   try {
     logger.info('STARTUP', '🚀 Starting Telegram Crypto Bot...');
     
-    // Create local file lock first
-    if (!createLock()) {
+    // Create local file lock first (skip in container environments or when disabled)
+    const isContainerEnv = process.pid === 1 || process.env.NODE_ENV === 'production' || process.env.DISABLE_FILE_LOCK === 'true';
+    if (!isContainerEnv && !createLock()) {
       console.log('❌ Failed to create local lock, exiting...');
       process.exit(1);
+    } else if (isContainerEnv) {
+      console.log('🐳 File lock disabled (container environment or DISABLE_FILE_LOCK=true)');
     }
     
     // Validate configuration
@@ -168,24 +176,35 @@ async function startServer() {
     
     // Initialize i18n service
     await i18nService.init();
+    console.log('✅ I18n service initialized');
     
     // Initialize Express app
     const app = express();
     app.use(express.json());
+    console.log('✅ Express app initialized');
     
     // Initialize bot
+    console.log('🤖 Creating Telegraf bot...');
     const bot = new Telegraf(config.telegram.botToken);
+    console.log('✅ Telegraf bot created');
     
     // Initialize startup service and run all checks
+    console.log('🔧 Creating StartupService...');
     const startupService = new StartupService(bot);
+    console.log('✅ StartupService created');
     
     // Check if we'll use polling mode to skip webhook setup
     const usePolling = config.app.nodeEnv === 'development'; // Use polling only in development
+    logger.info('STARTUP', `🚀 Initializing startup service (mode: ${usePolling ? 'polling' : 'webhook'})...`);
+    
     const initSuccess = await startupService.initialize(usePolling ? 'polling' : 'webhook');
     
     if (!initSuccess) {
+      logger.error('STARTUP', '❌ Startup service initialization failed');
       throw new Error('Falha na inicialização do sistema');
     }
+    
+    logger.info('STARTUP', '✅ Startup service initialized successfully');
     
     // Setup bot
     logger.info('STARTUP', '🤖 Setting up bot...');

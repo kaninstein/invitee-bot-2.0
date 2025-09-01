@@ -24,28 +24,35 @@ export class StartupService {
     
     try {
       // 1. Verificar variáveis de ambiente obrigatórias
+      logger.info('STARTUP', '1️⃣ Validating environment variables...');
       await this.validateEnvironmentVariables();
       
       // 2. Configurar webhook do Telegram (apenas se não for polling mode)
       if (mode === 'webhook') {
+        logger.info('STARTUP', '2️⃣ Setting up Telegram webhook...');
         await this.setupTelegramWebhook();
       } else {
-        logger.info('STARTUP', '🔄 Pulando configuração do webhook (modo polling ativo)');
+        logger.info('STARTUP', '2️⃣ Skipping webhook setup (polling mode)');
       }
       
       // 3. Verificar e inicializar banco de dados
+      logger.info('STARTUP', '3️⃣ Initializing database...');
       await this.initializeDatabase();
       
       // 4. Executar migrations do banco de dados
+      logger.info('STARTUP', '4️⃣ Running database migrations...');
       await this.runDatabaseMigrations();
       
       // 5. Verificar conexão Redis
+      logger.info('STARTUP', '5️⃣ Validating Redis connection...');
       await this.validateRedisConnection();
       
       // 6. Validar API da Blofin
+      logger.info('STARTUP', '6️⃣ Validating Blofin API...');
       await this.validateBlofinAPI();
       
       // 7. Configurar segurança do grupo Telegram
+      logger.info('STARTUP', '7️⃣ Setting up group security...');
       await this.setupGroupSecurity();
       
       logger.info('STARTUP', '✅ Todas as verificações de inicialização foram bem-sucedidas!');

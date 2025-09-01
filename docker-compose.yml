@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
@@ -30,7 +30,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "6381:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 30s
@@ -53,7 +53,7 @@ services:
       REDIS_URL: redis://default:redis@redis:6379
       
       # App Configuration
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3000
       JWT_SECRET: inviteebot2024secretkeyforjwttoken
       ENCRYPTION_KEY: inviteebot2024encryptkey32chars1
@@ -73,6 +73,7 @@ services:
       LOOM_TUTORIAL_URL: https://www.loom.com/share/your-uid-tutorial
       TEST_MODE: false
       LOG_LEVEL: info
+      DISABLE_FILE_LOCK: true
       
       # CONFIGURE ESTAS VARIÁVEIS:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-your_telegram_bot_token_here}
@@ -84,7 +85,7 @@ services:
       BLOFIN_BASE_URL: ${BLOFIN_BASE_URL:-https://openapi.blofin.com}
       YOUR_REFERRAL_CODE: ${YOUR_REFERRAL_CODE:-your_referral_code}
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - ./logs:/app/logs
     healthcheck:
