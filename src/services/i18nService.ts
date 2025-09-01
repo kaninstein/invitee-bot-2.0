@@ -5,8 +5,8 @@ const resources = {
   en: {
     translation: {
       // Start command messages
-      'start.welcome': '🚀 **Welcome to the Crypto Calls Bot!**',
-      'start.hello': '👋 Hello {{firstName}}!',
+      'start.welcome': '🚀 *Welcome to the Crypto Calls Bot\\!*',
+      'start.hello': '👋 Hello {{firstName}}\\!',
       'start.accessMessage': '🎉 Hello {{firstName}}!\n\n✅ You already have access to the crypto calls group!\n\n🔗 [Click here to join the group](https://t.me/c/{{groupId}}/1)\n\n💡 Use /status to check your current status.',
       'start.instructions': 'To have access to our exclusive crypto calls group:',
       'start.step1.title': '🏦 STEP 1: Register on Blofin',
@@ -138,12 +138,14 @@ class I18nService {
   }
 
   public escapeMarkdownV2(text: string): string {
-    return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+    // For MarkdownV2, escape special characters but preserve intentional markdown formatting
+    return text.replace(/([_~`>#+=|{}.!-])/g, '\\$1');
   }
 
   public tMarkdown(key: string, options?: any): string {
     const translated = this.t(key, options);
-    return this.escapeMarkdownV2(translated);
+    // Don't escape the translated text since it should contain proper markdown
+    return translated;
   }
 }
 

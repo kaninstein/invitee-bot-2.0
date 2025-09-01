@@ -50,8 +50,8 @@ services:
       ENCRYPTION_KEY: inviteebot2024encryptkey32chars1
       
       # Language
-      DEFAULT_LANGUAGE: pt
-      FALLBACK_LANGUAGE: en
+      DEFAULT_LANGUAGE: en
+      FALLBACK_LANGUAGE: pt
       
       # Rate Limiting
       RATE_LIMIT_WINDOW_MS: 900000
